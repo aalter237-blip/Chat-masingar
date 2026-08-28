@@ -7,12 +7,21 @@
  *   npm i -D jsdom esbuild
  *   node test/web-smoke.mjs [baseUrl]
  */
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
-import { JSDOM, VirtualConsole } from 'jsdom';
+let build;
+let JSDOM;
+let VirtualConsole;
+try {
+  ({ build } = await import('esbuild'));
+  ({ JSDOM, VirtualConsole } = await import('jsdom'));
+} catch {
+  console.log('jsdom / esbuild are not installed -> skipping the web UI smoke test');
+  console.log('(install them with: cd test && npm i jsdom esbuild)');
+  process.exit(0);
+}
 
 const BASE = process.argv[2] || 'http://127.0.0.1:3000';
 const here = dirname(fileURLToPath(import.meta.url));

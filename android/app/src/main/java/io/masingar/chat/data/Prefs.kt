@@ -51,6 +51,7 @@ object Prefs {
         set(value) = run { meJson = value?.let { org.json.JSONObject().apply {
             put("id", it.id); put("phone", it.phone); put("name", it.name)
             put("avatar", it.avatar); put("about", it.about)
+            if (it.publicKey.isNotBlank()) put("publicKey", it.publicKey)
         }.toString() }.orEmpty() }
 
     var serverUrl: String

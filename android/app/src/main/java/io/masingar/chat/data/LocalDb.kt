@@ -9,20 +9,21 @@ import android.database.sqlite.SQLiteOpenHelper
  * Local cache so the app is fully usable offline:
  * everything shown in the UI is read from here and refreshed from the network.
  */
-class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null, 3) {
+class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """CREATE TABLE IF NOT EXISTS conversations(
                 id TEXT PRIMARY KEY, type TEXT, title TEXT, avatar TEXT,
                 members TEXT, peer TEXT, unread INTEGER, muted INTEGER,
+                settings TEXT,
                 created_at INTEGER, updated_at INTEGER, last_message TEXT)"""
         )
         db.execSQL(
             """CREATE TABLE IF NOT EXISTS messages(
                 id TEXT PRIMARY KEY, conversation_id TEXT, sender_id TEXT, type TEXT,
                 body TEXT, media_url TEXT, media_meta TEXT, status TEXT,
-                client_id TEXT, created_at INTEGER, deleted INTEGER)"""
+                client_id TEXT, created_at INTEGER, deleted INTEGER, encrypted INTEGER)"""
         )
         db.execSQL(
             """CREATE TABLE IF NOT EXISTS contacts(
@@ -36,13 +37,20 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
         db.execSQL(
             """CREATE TABLE IF NOT EXISTS outbox(
                 client_id TEXT PRIMARY KEY, conversation_id TEXT, type TEXT, body TEXT,
-                media_url TEXT, media_meta TEXT, reply_to TEXT, created_at INTEGER, attempts INTEGER)"""
+                media_url TEXT, media_meta TEXT, reply_to TEXT, created_at INTEGER,
+                attempts INTEGER, encrypted INTEGER)"""
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, created_at)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_calls_time ON calls(started_at)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
+        if (old < 4) {
+            runCatching { db.execSQL("ALTER TABLE conversations ADD COLUMN settings TEXT") }
+            runCatching { db.execSQL("ALTER TABLE messages ADD COLUMN encrypted INTEGER DEFAULT 0") }
+            runCatching { db.execSQL("ALTER TABLE outbox ADD COLUMN encrypted INTEGER DEFAULT 0") }
+            return
+        }
         db.execSQL("DROP TABLE IF EXISTS conversations")
         db.execSQL("DROP TABLE IF EXISTS messages")
         db.execSQL("DROP TABLE IF EXISTS contacts")
@@ -66,6 +74,7 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
                     put("peer", c.peer?.toJson().orEmpty())
                     put("unread", c.unread)
                     put("muted", if (c.muted) 1 else 0)
+                    put("settings", c.settings)
                     put("created_at", c.createdAt)
                     put("updated_at", c.updatedAt)
                     put("last_message", c.lastMessage?.toJson().orEmpty())
@@ -95,6 +104,13 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
                         ?.let { runCatching { parseUser(org.json.JSONObject(it)) }.getOrNull() },
                     unread = cur.getInt(cur.getColumnIndexOrThrow("unread")),
                     muted = cur.getInt(cur.getColumnIndexOrThrow("muted")) == 1,
+                    settings = cur.getString(cur.getColumnIndexOrThrow("settings")) ?: "",
+                    wallpaper = cur.getString(cur.getColumnIndexOrThrow("settings")).takeIf { !it.isNullOrBlank() }
+                        ?.let { runCatching { org.json.JSONObject(it).optJSONObject("wallpaper") }.getOrNull() }
+                        ?.let { w ->
+                            val id = w.optString("id", "none")
+                            WALLPAPERS.firstOrNull { p -> p.id == id } ?: Wallpaper(id, w.optString("css"))
+                        },
                     createdAt = cur.getLong(cur.getColumnIndexOrThrow("created_at")),
                     updatedAt = cur.getLong(cur.getColumnIndexOrThrow("updated_at")),
                     lastMessage = cur.getString(cur.getColumnIndexOrThrow("last_message")).takeIf { !it.isNullOrBlank() }
@@ -153,6 +169,12 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
         } finally {
             writableDatabase.endTransaction()
         }
+    }
+
+    /** Stores the shared look of a chat (wallpaper, ...) pushed by the server. */
+    fun updateSettings(convId: String, settingsJson: String) {
+        val v = ContentValues().apply { put("settings", settingsJson) }
+        writableDatabase.update("conversations", v, "id = ?", arrayOf(convId))
     }
 
     fun markConversationRead(convId: String) {
@@ -253,6 +275,7 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
             put("reply_to", m.replyTo)
             put("created_at", m.createdAt)
             put("attempts", 0)
+            put("encrypted", if (m.encrypted) 1 else 0)
         }
         writableDatabase.insertWithOnConflict("outbox", null, v, SQLiteDatabase.CONFLICT_REPLACE)
     }
@@ -274,6 +297,7 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
                     clientId = cur.getString(idx("client_id")) ?: "",
                     status = "sending",
                     createdAt = cur.getLong(idx("created_at")),
+                    encrypted = cur.getInt(idx("encrypted")) == 1,
                 )
             }
         }
@@ -316,6 +340,7 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
         put("client_id", clientId)
         put("created_at", createdAt)
         put("deleted", if (deleted) 1 else 0)
+        put("encrypted", if (encrypted) 1 else 0)
     }
 
     private fun android.database.Cursor.toMessage(): Message {
@@ -332,18 +357,21 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
             clientId = getString(idx("client_id")) ?: "",
             createdAt = getLong(idx("created_at")),
             deleted = getInt(idx("deleted")) == 1,
+            encrypted = getInt(idx("encrypted")) == 1,
         )
     }
 
     private fun User.toJson() = org.json.JSONObject().apply {
         put("id", id); put("phone", phone); put("name", name)
         put("avatar", avatar); put("about", about); put("online", online); put("lastSeen", lastSeen)
+        if (publicKey.isNotBlank()) put("publicKey", publicKey)
     }
 
     private fun Message.toJson() = org.json.JSONObject().apply {
         put("id", id); put("conversationId", conversationId); put("senderId", senderId)
         put("type", type); put("body", body); put("mediaUrl", mediaUrl)
         put("status", status); put("createdAt", createdAt); put("deleted", deleted)
+        put("encrypted", encrypted)
         if (mediaMeta.isNotBlank()) put("media", org.json.JSONObject(mediaMeta))
     }
 }

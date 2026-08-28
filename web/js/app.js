@@ -1,6 +1,7 @@
 /* Masingar web client - application shell, chat, contacts and call UI. */
 import { api, session, Realtime } from './api.js';
 import { CallEngine, QUALITY_PRESETS, LADDER } from './rtc.js';
+import { E2EE } from './crypto.js';
 import { t, setLang, lang, isRTL, applyLang } from './i18n.js';
 
 /* ------------------------------ utilities ------------------------------ */
@@ -47,6 +48,17 @@ const COUNTRIES = [
   ['61', 'أستراليا 🇦🇺'], ['64', 'نيوزيلندا 🇳🇿'], ['971', 'الإمارات 🇦🇪'],
 ];
 
+/** Shared chat wallpapers (stored on the server, applied on both sides). */
+const WALLPAPERS = [
+  { id: 'none', label: 'بدون', css: '' },
+  { id: 'teal', label: 'أخضر', css: 'linear-gradient(160deg,#005c4b,#0b141a)' },
+  { id: 'night', label: 'ليلي', css: 'linear-gradient(160deg,#1b2a4a,#0b141a)' },
+  { id: 'sunset', label: 'غروب', css: 'linear-gradient(160deg,#7b2d5e,#f9a825)' },
+  { id: 'sand', label: 'رملي', css: 'linear-gradient(160deg,#e6c9a8,#8d6e63)' },
+  { id: 'ocean', label: 'محيط', css: 'linear-gradient(160deg,#0f7a63,#053f8c)' },
+  { id: 'dots', label: 'منقّط', css: 'radial-gradient(circle at 20% 20%,#00a88433 2px,transparent 3px),radial-gradient(circle at 70% 60%,#25d36622 2px,transparent 3px),linear-gradient(160deg,#111b21,#0b141a)' },
+];
+
 const state = {
   me: null,
   conversations: [],
@@ -60,9 +72,14 @@ const state = {
   settings: loadSettings(),
   lastSync: 0,
   unreadTotal: 0,
+  e2ee: false,
 };
 
 const rt = new Realtime();
+/** id -> opened payload, so we do not decrypt the same message twice */
+const decryptedCache = new Map();
+/** url -> object URL of a decrypted attachment */
+const mediaCache = new Map();
 let engine = null; // active CallEngine
 let pendingIncoming = null;
 let ringtone = null;
@@ -371,16 +388,154 @@ async function enterApp() {
   rt.connect();
   await Promise.all([loadConversations(), loadContacts(), loadCalls()]);
   renderChats();
+  await initE2EE();
+}
+
+/* --------------------------------- E2EE ------------------------------------ */
+
+/** Loads (or creates) the device identity and publishes the public key. */
+async function initE2EE() {
+  try {
+    state.e2ee = await E2EE.init();
+  } catch {
+    state.e2ee = false;
+  }
+  if (!state.e2ee) return;
+  registerPeers();
+  try {
+    const pub = await E2EE.publicKeyB64();
+    if (pub && state.me && state.me.publicKey !== pub) {
+      const res = await api.updateMe({ public_key: pub });
+      state.me = res.user;
+    }
+  } catch {
+    /* keep going: messages simply stay unencrypted for now */
+  }
+}
+
+/** Caches the public keys of everybody we can talk to. */
+function registerPeers() {
+  if (!state.e2ee) return;
+  for (const conv of state.conversations) {
+    for (const m of conv.members || []) if (m.publicKey) E2EE.rememberPeer(m.id, m.publicKey);
+  }
+  for (const c of state.contacts) {
+    if (c.user?.publicKey) E2EE.rememberPeer(c.user.id, c.user.publicKey);
+  }
+}
+
+/** Makes sure the group key of a conversation is available locally. */
+async function ensureGroupKey(conv) {
+  if (!state.e2ee || !conv) return false;
+  if (E2EE.groupKeys.has(conv.id)) return true;
+  try {
+    const res = await api.groupKeys(conv.id);
+    const mine = (res.keys || []).find((k) => k.userId === state.me.id);
+    if (!mine) return false;
+    const record = typeof mine.enc === 'string' && mine.enc.trim().startsWith('{') ? JSON.parse(mine.enc) : mine;
+    const author = mine.by || (conv.members || []).find((m) => m.id !== state.me.id)?.id;
+    const got = author ? await E2EE.unwrapGroupKey(conv.id, record, state.me.id, author) : null;
+    return !!got;
+  } catch {
+    return false;
+  }
+}
+
+/** Generates a group key and hands a wrapped copy to every member. */
+async function distributeGroupKey(conv) {
+  if (!state.e2ee) return;
+  const key = await E2EE.createGroupKey(conv.id);
+  const entries = [];
+  for (const m of conv.members || []) {
+    if (m.id === state.me.id) continue;
+    const wrapped = await E2EE.wrapGroupKey(conv.id, key, m.id, state.me.id);
+    if (wrapped) entries.push({ userId: m.id, enc: JSON.stringify(wrapped), nonce: wrapped.nonce });
+  }
+  if (entries.length) await api.setGroupKeys(conv.id, entries);
+}
+
+/**
+ * Sends a payload: encrypted end-to-end when possible, plain otherwise.
+ * payload = { t:'text', x } | { t:'media', m:{ url, k, n, mime, name, size, kind } }
+ */
+async function deliver(convId, payload) {
+  const conv = state.conversations.find((c) => c.id === convId);
+  let body = '';
+  let encrypted = false;
+
+  if (state.e2ee && conv?.type === 'group') {
+    if (!(await ensureGroupKey(conv)) && conv.members?.some((m) => m.id === state.me.id)) {
+      await distributeGroupKey(conv);
+    }
+    const envelope = await E2EE.encryptGroup({ conversationId: convId, senderId: state.me.id, payload });
+    if (envelope) {
+      body = envelope;
+      encrypted = true;
+    }
+  } else if (state.e2ee) {
+    const peerId = conv?.peer?.id;
+    if (peerId) {
+      const envelope = await E2EE.encryptDirect({ conversationId: convId, peerId, myId: state.me.id, payload });
+      if (envelope) {
+        body = envelope;
+        encrypted = true;
+      }
+    }
+  }
+  if (!encrypted) body = payload.t === 'text' ? payload.x : JSON.stringify(payload);
+
+  const media = payload.m || null;
+  const type = media ? media.kind || 'image' : payload.t === 'media' ? 'file' : 'text';
+  return api.sendMessage(convId, {
+    type,
+    body,
+    encrypted,
+    mediaUrl: media?.url || '',
+    mediaMeta: media ? { k: media.k, n: media.n, mime: media.mime, name: media.name, size: media.size } : null,
+    clientId: 'w' + Date.now(),
+  });
+}
+
+/**
+ * Opens a message. Outgoing messages carry a copy sealed for ourselves, so
+ * they open here as well; the local cache only short circuits the work.
+ */
+async function openMessage(message) {
+  if (!message.encrypted) return { t: 'text', x: message.body, plain: true };
+  if (decryptedCache.has(message.id)) return decryptedCache.get(message.id);
+  if (!state.e2ee) return null;
+  const conv = state.conversations.find((c) => c.id === message.conversationId);
+  try {
+    if (conv?.type === 'group') {
+      if (!(await ensureGroupKey(conv))) return null;
+      const envelope = JSON.parse(atob(message.body));
+      return await E2EE.decryptGroup({
+        conversationId: message.conversationId,
+        senderId: message.senderId,
+        envelope,
+      });
+    }
+    return await E2EE.decryptDirect({
+      conversationId: message.conversationId,
+      peerId: message.senderId,
+      myId: state.me.id,
+      body: message.body,
+    });
+  } catch {
+    return null;
+  }
 }
 
 async function loadConversations() {
   const res = await api.conversations();
   state.conversations = res.conversations || [];
   state.unreadTotal = state.conversations.reduce((n, c) => n + (c.unread || 0), 0);
+  registerPeers();
 }
 async function loadContacts() {
   const res = await api.contacts();
   state.contacts = res.contacts || [];
+  registerPeers();
 }
 async function loadCalls() {
   const res = await api.calls();
@@ -740,6 +895,7 @@ function renderSettings() {
   infoCard.append(
     h('div', { class: 'card-row' }, h('div', { class: 'grow', text: 'خوادم الشبكة (ICE)' }), h('div', { class: 'val', text: `${state.iceServers.length} خوادم` })),
     h('div', { class: 'card-row' }, h('div', { class: 'grow', text: 'حالة الاتصال' }), h('div', { class: 'val', id: 'conn-state', text: rt.connected ? t('online') : t('offline') })),
+    h('div', { class: 'card-row' }, h('div', { class: 'grow', text: 'التشفير من طرف لطرف' }), h('div', { class: 'val', text: state.e2ee ? '🔒 مُفعّل' : 'غير متاح في هذا المتصفح' })),
     h('div', { class: 'card-row' }, h('div', { class: 'grow', text: 'الإصدار' }), h('div', { class: 'val', text: '1.0.0 (web)' }))
   );
   view.append(infoCard);
@@ -815,6 +971,7 @@ async function openChat(convId) {
   state.activeConvId = convId;
   showScreen('chat');
   renderChatHeader();
+  applyWallpaper();
   const list = $('#messages');
   list.innerHTML = '';
   try {
@@ -874,40 +1031,93 @@ function renderMessages(convId) {
   list.scrollTop = list.scrollHeight;
 }
 
-function messageEl(m) {
-  const mine = m.senderId === state.me?.id;
-  const conv = state.conversations.find((c) => c.id === m.conversationId);
-  const isGroup = conv?.type === 'group';
-  const el = h('div', { class: `msg ${mine ? 'out' : 'in'}`, dataset: { id: m.id } });
+/** Resolves the (possibly encrypted) attachment to a usable URL. */
+async function resolveMedia(media) {
+  if (!media?.url) return '';
+  if (media.k && state.e2ee) {
+    const cached = mediaCache.get(media.url);
+    if (cached) return cached;
+    try {
+      const res = await fetch(media.url);
+      const plain = await E2EE.decryptMedia(await res.arrayBuffer(), media.k, media.n);
+      const url = URL.createObjectURL(new Blob([plain], { type: media.mime || 'application/octet-stream' }));
+      mediaCache.set(media.url, url);
+      return url;
+    } catch {
+      return media.url;
+    }
+  }
+  return media.url;
+}
 
-  if (!mine && isGroup) el.append(h('div', { class: 'sender', text: userById(m.senderId)?.name || '' }));
-
-  if (m.type === 'image' && m.mediaUrl) {
-    el.append(h('img', { src: m.mediaUrl, alt: 'صورة', onclick: () => window.open(m.mediaUrl, '_blank') }));
-    if (m.body) el.append(h('div', { text: m.body }));
-  } else if (m.type === 'video' && m.mediaUrl) {
-    el.append(h('video', { src: m.mediaUrl, controls: true, preload: 'metadata' }));
-  } else if (m.type === 'audio' && m.mediaUrl) {
-    el.append(h('audio', { src: m.mediaUrl, controls: true, preload: 'metadata' }), h('div', { class: 'muted', style: 'font-size:11px', text: '🎤 رسالة صوتية' }));
-  } else if (m.type === 'file' && m.mediaUrl) {
-    el.append(
-      h(
-        'a',
-        { href: m.mediaUrl, target: '_blank', rel: 'noopener', style: 'color:inherit' },
-        `📎 ${m.media?.name || 'ملف'}`
-      )
-    );
-  } else if (m.type === 'call') {
-    el.append(
+/** Renders the content of one bubble from its (decrypted) payload. */
+async function fillBubble(container, m, payload) {
+  if (m.deleted) {
+    container.append(h('i', { class: 'muted', text: t('deleted') }));
+    return;
+  }
+  const media = payload.m || m.media || null;
+  if ((payload.t === 'media' || m.type !== 'text') && media?.url) {
+    const url = await resolveMedia(media);
+    const kind = media.kind || (m.type === 'video' ? 'video' : m.type === 'audio' ? 'audio' : m.type === 'file' ? 'file' : 'image');
+    if (kind === 'image') {
+      container.append(h('img', { src: url, alt: media.name || 'صورة', onclick: () => window.open(url, '_blank') }));
+    } else if (kind === 'video') {
+      container.append(h('video', { src: url, controls: true, preload: 'metadata' }));
+    } else if (kind === 'audio') {
+      container.append(h('audio', { src: url, controls: true, preload: 'metadata' }), h('div', { class: 'muted', style: 'font-size:11px', text: '🎤 رسالة صوتية' }));
+    } else {
+      container.append(
+        h('a', { href: url, target: '_blank', rel: 'noopener', download: media.name || '', style: 'color:inherit' }, `📎 ${media.name || 'ملف'}`)
+      );
+    }
+    if (payload.x) container.append(h('div', { text: payload.x }));
+    return;
+  }
+  if (m.type === 'call') {
+    container.append(
       h('div', { class: 'call-row' },
         h('span', { text: m.media?.type === 'video' ? '🎥' : '📞' }),
         h('span', { text: m.body }),
         m.media?.durationMs ? h('span', { class: 'muted', text: fmtDuration(m.media.durationMs) }) : null)
     );
-  } else if (m.deleted) {
-    el.append(h('i', { class: 'muted', text: t('deleted') }));
+    return;
+  }
+  container.append(h('span', { text: payload.x ?? m.body ?? '' }));
+}
+
+/** Small notice shown in the middle of the chat (screenshot, system, ...). */
+function systemEl(m) {
+  return h(
+    'div',
+    { class: 'system-msg' },
+    h('span', { text: m.body }),
+    h('span', { class: 'muted', style: 'font-size:10px;margin-inline-start:6px', text: fmtTime(m.createdAt) })
+  );
+}
+
+function messageEl(m) {
+  if (m.type === 'system') return systemEl(m);
+  const mine = m.senderId === state.me?.id;
+  const conv = state.conversations.find((c) => c.id === m.conversationId);
+  const isGroup = conv?.type === 'group';
+  const el = h('div', { class: `msg ${mine ? 'out' : 'in'}`, dataset: { id: m.id } });
+
+  const body = h('div', { class: 'bubble-body' });
+  el.append(body);
+
+  if (m.encrypted) {
+    body.append(h('span', { class: 'muted', text: '🔒 …' }));
+    openMessage(m).then(async (payload) => {
+      body.innerHTML = '';
+      if (!payload) {
+        body.append(h('i', { class: 'muted', text: '🔒 رسالة مشفّرة — لا يمكن فتحها على هذا الجهاز' }));
+        return;
+      }
+      await fillBubble(body, m, payload);
+    });
   } else {
-    el.append(h('span', { text: m.body }));
+    fillBubble(body, m, { t: m.type === 'text' ? 'text' : 'media', x: m.body, m: m.media, plain: true });
   }
 
   const meta = h('div', { class: 'meta' }, h('span', { text: fmtTime(m.createdAt) }));
@@ -963,8 +1173,9 @@ async function sendText() {
   input.value = '';
   autoGrow(input);
   try {
-    const res = await api.sendMessage(state.activeConvId, { type: 'text', body: text, clientId: 'w' + Date.now() });
+    const res = await deliver(state.activeConvId, { t: 'text', x: text });
     pushMessage(state.activeConvId, res.message);
+    if (res.message.encrypted) decryptedCache.set(res.message.id, { t: 'text', x: text });
     updateConvLast(state.activeConvId, res.message);
   } catch (e) {
     toast(e.message, 'error');
@@ -1007,13 +1218,18 @@ async function toggleRecord() {
       for (const t2 of stream.getTracks()) t2.stop();
       if (blob.size < 500) return;
       try {
-        const up = await api.upload(blob, { durationMs: 0 });
-        const res = await api.sendMessage(state.activeConvId, {
-          type: 'audio',
-          mediaUrl: up.url,
-          mediaMeta: up.meta,
-          body: '',
-        });
+        const prepared = state.e2ee
+          ? await E2EE.encryptFile(new File([blob], 'note.m4a', { type: blob.type || 'audio/mp4' }))
+          : null;
+        const up = await api.upload(prepared ? new File([prepared.blob], 'enc.bin') : new File([blob], 'note.m4a'), { durationMs: 0 });
+        const payload = {
+          t: 'media',
+          m: prepared
+            ? { url: up.url, k: prepared.key, n: prepared.nonce, mime: 'audio/mp4', name: 'note.m4a', size: prepared.size, kind: 'audio' }
+            : { url: up.url, mime: blob.type, name: 'note.m4a', size: blob.size, kind: 'audio' },
+        };
+        const res = await deliver(state.activeConvId, payload);
+        if (res.message.encrypted) decryptedCache.set(res.message.id, payload);
         pushMessage(state.activeConvId, res.message);
         updateConvLast(state.activeConvId, res.message);
       } catch (e) {
@@ -1026,6 +1242,94 @@ async function toggleRecord() {
   } catch {
     toast(t('micDenied'), 'error');
   }
+}
+
+
+/* ------------------------- shared chat wallpaper --------------------------- */
+
+function applyWallpaper() {
+  const messages = $('#messages');
+  if (!messages) return;
+  const conv = state.conversations.find((c) => c.id === state.activeConvId);
+  const wall = conv?.settings?.wallpaper;
+  messages.style.background = '';
+  messages.style.backgroundImage = '';
+  messages.classList.remove('with-wallpaper');
+  if (!wall || wall.id === 'none') return;
+  const preset = WALLPAPERS.find((w) => w.id === wall.id);
+  const css = preset ? preset.css : wall.css || '';
+  if (!css) return;
+  messages.style.background = css;
+  messages.style.backgroundAttachment = 'fixed';
+  messages.classList.add('with-wallpaper');
+}
+
+async function openWallpaperPicker() {
+  const conv = state.conversations.find((c) => c.id === state.activeConvId);
+  if (!conv) return;
+  const grid = h('div', { class: 'wall-grid' });
+  for (const w of WALLPAPERS) {
+    grid.append(
+      h(
+        'button',
+        {
+          class: `wall-item${conv.settings?.wallpaper?.id === w.id ? ' active' : ''}`,
+          onclick: async () => {
+            try {
+              const res = await api.settings(conv.id, { wallpaper: { id: w.id, css: w.css } });
+              conv.settings = res.settings;
+              applyWallpaper();
+              document.querySelector('.modal-backdrop')?.remove();
+              toast('تم تحديث خلفية الدردشة للطرفين ✓');
+            } catch (e) {
+              toast(e.message, 'error');
+            }
+          },
+        },
+        h('span', { class: 'wall-swatch', style: w.css ? `background:${w.css}` : 'background:var(--bg-elev-2)' }),
+        h('small', { text: w.label })
+      )
+    );
+  }
+  await modal({ title: 'خلفية الدردشة (تظهر لكلا الطرفين)', body: grid, actions: [{ label: 'إغلاق', kind: 'primary', value: null }] });
+}
+
+/* ------------------- screenshot / screen recording notices ------------------ */
+
+/** Tells the peer that a screenshot was taken (or the screen is being recorded). */
+function reportPrivacyEvent(type, meta = {}) {
+  if (!state.activeConvId) return;
+  rt.send({ t: 'event', type, conversationId: state.activeConvId, meta });
+}
+
+function installPrivacyWatchers() {
+  // screenshots: keyboard shortcuts used by Windows / macOS / Linux
+  window.addEventListener('keyup', (e) => {
+    const key = e.key;
+    const isPrint = key === 'PrintScreen' || key === 'PrintScrn' || key === 'Snapshot';
+    const macShot = e.metaKey && e.shiftKey && ['3', '4', '5'].includes(key);
+    const winSnip = e.metaKey && e.shiftKey && key.toLowerCase() === 's';
+    if (isPrint || macShot || winSnip) reportPrivacyEvent('screenshot', { source: 'keyboard' });
+  });
+  window.addEventListener('keydown', (e) => {
+    // Ctrl/Cmd + PrintScreen and Ctrl + Shift + S are captured before the OS
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'PrintScreen' || e.key.toLowerCase() === 'p')) {
+      reportPrivacyEvent('screenshot', { source: 'keyboard' });
+    }
+  });
+  // screen sharing started from inside the tab (getDisplayMedia)
+  if (navigator.mediaDevices?.getDisplayMedia) {
+    const original = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getDisplayMedia = async (...args) => {
+      reportPrivacyEvent('recording', { source: 'display-media' });
+      const stream = await original(...args);
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => reportPrivacyEvent('recording_stop'));
+      return stream;
+    };
+  }
+  // window focus loss while typing is a weak signal; ignore it on purpose to
+  // avoid false positives. Detection of third party recorders is not possible
+  // from a browser - the Android app uses the platform APIs instead.
 }
 
 /* -------------------------------- calls --------------------------------- */
@@ -1377,6 +1681,24 @@ rt.addEventListener('frame', async (ev) => {
       await loadConversations();
       renderChats();
       break;
+    case 'conversation:settings': {
+      const conv = state.conversations.find((c) => c.id === f.conversationId);
+      if (conv) conv.settings = f.settings;
+      else await loadConversations();
+      if (f.conversationId === state.activeConvId) applyWallpaper();
+      toast('🎨 غيّر الطرف الآخر خلفية الدردشة');
+      break;
+    }
+    case 'conversation:keys':
+      // a group key was (re)distributed: drop the cached one and reload
+      E2EE.groupKeys.delete(f.conversationId);
+      break;
+    case 'event':
+      if (f.message) pushMessage(f.message.conversationId, f.message);
+      if (f.type === 'screenshot') toast('📸 التقط الطرف الآخر لقطة للشاشة', 'warn');
+      if (f.type === 'recording') toast('⏺️ بدأ الطرف الآخر تسجيل الشاشة', 'warn');
+      if (f.type === 'recording_stop') toast('⏹️ أوقف الطرف الآخر تسجيل الشاشة');
+      break;
     case 'call.end':
     case 'call.decline':
     case 'call.busy':
@@ -1413,6 +1735,7 @@ function wireUi() {
     renderChats();
   });
 
+  $('#btn-wallpaper').addEventListener('click', openWallpaperPicker);
   $('#btn-voice-call').addEventListener('click', () => {
     const conv = state.conversations.find((c) => c.id === state.activeConvId);
     const peer = peerOf(conv);
@@ -1447,8 +1770,16 @@ function wireUi() {
     if (!file || !state.activeConvId) return;
     const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'file';
     try {
-      const up = await api.upload(file);
-      const res = await api.sendMessage(state.activeConvId, { type: kind, mediaUrl: up.url, mediaMeta: up.meta, body: '' });
+      const prepared = state.e2ee ? await E2EE.encryptFile(file) : null;
+      const up = await api.upload(prepared ? new File([prepared.blob], 'enc.bin', { type: 'application/octet-stream' }) : file);
+      const payload = {
+        t: 'media',
+        m: prepared
+          ? { url: up.url, k: prepared.key, n: prepared.nonce, mime: prepared.mime, name: prepared.name, size: prepared.size, kind }
+          : { url: up.url, mime: file.type, name: file.name, size: file.size, kind },
+      };
+      const res = await deliver(state.activeConvId, payload);
+      if (res.message.encrypted) decryptedCache.set(res.message.id, payload);
       pushMessage(state.activeConvId, res.message);
       updateConvLast(state.activeConvId, res.message);
     } catch (err) {
@@ -1515,6 +1846,8 @@ async function boot() {
   } else {
     showScreen('login');
   }
+
+  installPrivacyWatchers();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -33,10 +33,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -60,10 +63,14 @@ import io.masingar.chat.R
 import io.masingar.chat.data.Conversation
 import io.masingar.chat.data.Message
 import io.masingar.chat.data.Repository
+import io.masingar.chat.data.Wallpaper
+import io.masingar.chat.data.wallpaperOrNull
 import io.masingar.chat.net.Http
 import io.masingar.chat.util.Format
 import io.masingar.chat.util.Phone
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 
@@ -85,6 +92,16 @@ fun ChatScreen(
     var recording by remember { mutableStateOf(false) }
     var recorder: MediaRecorder? by remember { mutableStateOf(null) }
     var recordFile: File? by remember { mutableStateOf(null) }
+    var showWallpaper by remember { mutableStateOf(false) }
+    val notice by Repository.notice.collectAsState()
+    val wallpaper = conversation.wallpaperOrNull()
+
+    LaunchedEffect(notice) {
+        if (notice != null) {
+            delay(5000)
+            Repository.consumeNotice()
+        }
+    }
 
     val attachLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
@@ -135,6 +152,7 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    TextButton(onClick = { showWallpaper = true }) { Text("🎨") }
                     IconButton(onClick = { peer?.let { onCall(it.id, "audio") } }) {
                         Icon(Icons.Default.Call, contentDescription = stringResource(R.string.voice_call))
                     }
@@ -214,7 +232,13 @@ fun ChatScreen(
             }
         },
     ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+        val brush = wallpaperBrush(wallpaper)
+        Box(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .then(if (brush != null) Modifier.background(brush) else Modifier),
+        ) {
             if (messages.isEmpty()) {
                 EmptyState(stringResource(R.string.no_messages), modifier = Modifier.fillMaxSize())
             } else {
@@ -223,12 +247,78 @@ fun ChatScreen(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    items(messages, key = { it.id }) { message -> MessageBubble(message, conversation) }
+                    items(messages, key = { it.id }) { message ->
+                        if (message.type == "system") SystemChip(message)
+                        else MessageBubble(message, conversation)
+                    }
                     item { Spacer(Modifier.height(8.dp)) }
                 }
             }
+            notice?.let {
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 4.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp),
+                ) {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+        if (showWallpaper) {
+            AlertDialog(
+                onDismissRequest = { showWallpaper = false },
+                confirmButton = {
+                    TextButton(onClick = { showWallpaper = false }) { Text(stringResource(android.R.string.cancel)) }
+                },
+                text = {
+                    WallpaperPicker(wallpaper) { picked: Wallpaper ->
+                        showWallpaper = false
+                        scope.launch { Repository.setWallpaper(conversation.id, picked) }
+                    }
+                },
+            )
         }
     }
+}
+
+/** Screenshot / recording notices, written by the server into the chat. */
+@Composable
+private fun SystemChip(message: Message) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(message.body, style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.size(6.dp))
+                Text(
+                    Format.time(message.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Decrypts an attachment once and keeps it around for the bubble. */
+@Composable
+private fun rememberMediaFile(message: Message): File? {
+    val context = LocalContext.current
+    var file by remember(message.id) { mutableStateOf<File?>(null) }
+    LaunchedEffect(message.id) { file = Repository.mediaFile(context, message) }
+    return file
 }
 
 @Composable
@@ -237,6 +327,15 @@ private fun MessageBubble(message: Message, conversation: Conversation) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showMenu by remember { mutableStateOf(false) }
+    val plain by Repository.plain.collectAsState()
+    val payload = plain[message.id] ?: plain[message.clientId]
+    /** The readable text: decrypted for our own and the peer's messages. */
+    val text = when {
+        !message.encrypted -> message.body
+        payload != null -> runCatching { JSONObject(payload) }.getOrNull()?.optString("x").orEmpty()
+        else -> ""
+    }
+    val locked = message.encrypted && payload == null
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -263,20 +362,40 @@ private fun MessageBubble(message: Message, conversation: Conversation) {
                         Text(stringResource(R.string.message_deleted), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     message.type == "image" && message.mediaUrl.isNotBlank() -> {
-                        AsyncImage(
-                            model = Http.media(message.mediaUrl),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 260.dp)
-                                .clip(RoundedCornerShape(10.dp)),
-                        )
-                        if (message.body.isNotBlank()) Text(message.body)
+                        if (message.encrypted) {
+                            val file = rememberMediaFile(message)
+                            if (file != null) {
+                                AsyncImage(
+                                    model = file,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 260.dp)
+                                        .clip(RoundedCornerShape(10.dp)),
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) { CircularProgressIndicator() }
+                            }
+                        } else {
+                            AsyncImage(
+                                model = Http.media(message.mediaUrl),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 260.dp)
+                                    .clip(RoundedCornerShape(10.dp)),
+                            )
+                        }
+                        if (text.isNotBlank()) Text(text)
                     }
-                    message.type == "audio" -> Text("🎤 ${stringResource(R.string.record_voice)}")
-                    message.type == "file" -> Text("📎 ${message.body.ifBlank { "ملف" }}")
+                    message.type == "audio" -> AudioRow(message)
+                    message.type == "file" -> Text("📎 ${payloadName(payload).ifBlank { message.body.ifBlank { "ملف" } }}")
                     message.type == "call" -> Text("📞 ${message.body}")
-                    else -> Text(text = message.body, textAlign = TextAlign.Start)
+                    locked -> Text(text = "🔒 رسالة مشفّرة", textAlign = TextAlign.Start, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else -> Text(text = text, textAlign = TextAlign.Start)
                 }
                 Row(
                     modifier = Modifier.align(Alignment.End),
@@ -316,6 +435,56 @@ private fun MessageBubble(message: Message, conversation: Conversation) {
             }
         }
     }
+}
+
+/** Voice note (and any audio attachment): decrypt, then play it in place. */
+@Composable
+private fun AudioRow(message: Message) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var player by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var playing by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) {
+        onDispose { runCatching { player?.release() } }
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.clickable {
+            scope.launch {
+                val current = player
+                if (current != null) {
+                    if (current.isPlaying) {
+                        current.pause()
+                        playing = false
+                    } else {
+                        current.start()
+                        playing = true
+                    }
+                    return@launch
+                }
+                val file = Repository.mediaFile(context, message) ?: return@launch
+                val mp = android.media.MediaPlayer().apply {
+                    setDataSource(file.absolutePath)
+                    setOnCompletionListener { playing = false }
+                    prepare()
+                    start()
+                }
+                player = mp
+                playing = true
+            }
+        },
+    ) {
+        Text(if (playing) "⏸️" else "▶️")
+        Spacer(Modifier.size(6.dp))
+        Text("🎤 ${stringResource(R.string.record_voice)}")
+    }
+}
+
+private fun payloadName(payloadJson: String?): String {
+    if (payloadJson.isNullOrBlank()) return ""
+    return runCatching {
+        JSONObject(payloadJson).optJSONObject("m")?.optString("name").orEmpty()
+    }.getOrDefault("")
 }
 
 private fun copyToCache(context: android.content.Context, uri: Uri): File? = runCatching {

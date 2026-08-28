@@ -279,13 +279,18 @@ private fun ChatsTab(
     }
 }
 
-private fun previewOf(message: Message?): String = when (message?.type) {
-    "image" -> "📷 صورة"
-    "video" -> "🎥 فيديو"
-    "audio" -> "🎤 رسالة صوتية"
-    "file" -> "📎 ملف"
-    "call" -> "📞 مكالمة"
-    else -> message?.body.orEmpty().ifBlank { "" }
+private fun previewOf(message: Message?): String {
+    if (message == null) return ""
+    val opened = Repository.payloadOf(message)?.optString("x").orEmpty()
+    val text = if (message.encrypted) opened else message.body
+    return when (message.type) {
+        "image" -> "📷 صورة"
+        "video" -> "🎥 فيديو"
+        "audio" -> "🎤 رسالة صوتية"
+        "file" -> "📎 ${runCatching { org.json.JSONObject(Repository.payloadOf(message)?.toString().orEmpty()).optJSONObject("m")?.optString("name").orEmpty() }.getOrDefault("").ifBlank { "ملف" }}"
+        "call" -> "📞 مكالمة"
+        else -> text.ifBlank { if (message.encrypted) "🔒 رسالة مشفّرة" else "" }
+    }
 }
 
 /* ---------------------------------- calls ---------------------------------- */

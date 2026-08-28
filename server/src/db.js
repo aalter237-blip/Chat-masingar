@@ -203,6 +203,25 @@ CREATE TABLE IF NOT EXISTS blocks (
   PRIMARY KEY (blocker_id, blocked_id)
 );
 
+CREATE TABLE IF NOT EXISTS conversation_keys (
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  enc_key         TEXT NOT NULL,
+  nonce           TEXT NOT NULL,
+  updated_by      TEXT,
+  updated_at      INTEGER NOT NULL,
+  PRIMARY KEY (conversation_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS conversation_settings (
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  key             TEXT NOT NULL,
+  value           TEXT NOT NULL,
+  updated_by      TEXT,
+  updated_at      INTEGER NOT NULL,
+  PRIMARY KEY (conversation_id, key)
+);
+
 CREATE TABLE IF NOT EXISTS push_queue (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL,

@@ -16,6 +16,7 @@ import androidx.core.graphics.drawable.IconCompat
 import io.masingar.chat.R
 import io.masingar.chat.data.Conversation
 import io.masingar.chat.data.Message
+import io.masingar.chat.data.Repository
 import io.masingar.chat.data.User
 
 object Notify {
@@ -78,7 +79,11 @@ object Notify {
             "audio" -> "🎤"
             "file" -> "📎"
             "call" -> "📞"
-            else -> m.body
+            else -> if (m.encrypted) {
+                Repository.payloadOf(m)?.optString("x")?.takeIf { it.isNotBlank() } ?: "🔒 رسالة مشفّرة"
+            } else {
+                m.body
+            }
         }
         val notification = NotificationCompat.Builder(context, CH_MESSAGES)
             .setSmallIcon(R.drawable.ic_stat_call)

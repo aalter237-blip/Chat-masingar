@@ -12,13 +12,15 @@ import { log, now, sanitizeText, RateLimiter } from './util.js';
 import { verifyToken } from './auth.js';
 import * as store from './store.js';
 import * as hub from './hub.js';
-import { pushIncomingCall } from './push.js';
+import { pushIncomingCall, pushMessage } from './push.js';
 
 /** callId -> {callerId, calleeId, type, conversationId, state, startedAt, timer} */
 const activeCalls = new Map();
 const ringTimeoutMs = 45_000;
 
 const limiter = new RateLimiter(1000, 30); // 30 frames / second / socket
+/** privacy event throttling: userId:conversationId:kind -> timestamp */
+const eventThrottle = new Map();
 
 function send(ws, obj) {
   if (ws.readyState !== 1) return;
@@ -296,6 +298,52 @@ function handle(ws, ctx, frame) {
       const entry = activeCalls.get(callId);
       if (!entry) return;
       entry.quality = frame.stats || null;
+      return;
+    }
+
+    case 'event': {
+      // privacy events: screenshot / screen recording, shown live to the peer
+      const convId = String(frame.conversationId || '');
+      if (!convId || !store.isMember(convId, userId)) return;
+      const kind = String(frame.type || '');
+      const sender = store.getUserById(userId);
+      const who = sender?.name?.trim() || 'الطرف الآخر';
+      const labels = {
+        screenshot: `📸 ${who} التقط لقطة للشاشة`,
+        recording: `⏺️ ${who} بدأ تسجيل الشاشة`,
+        recording_stop: `⏹️ ${who} أوقف تسجيل الشاشة`,
+      };
+      if (!labels[kind]) return;
+
+      // simple throttle: one notice of the same kind every 4 seconds
+      const key = `${userId}:${convId}:${kind}`;
+      const last = eventThrottle.get(key) || 0;
+      if (now() - last < 4000) return;
+      eventThrottle.set(key, now());
+
+      const message = store.createMessage({
+        conversationId: convId,
+        senderId: userId,
+        type: 'system',
+        body: labels[kind],
+        mediaMeta: { event: kind, meta: frame.meta || null },
+      });
+      const view = store.getMessage(message.id);
+      for (const m of store.listMembers(convId)) {
+        if (m.id === userId) continue;
+        const delivered = hub.sendToUser(m.id, {
+          t: 'event',
+          type: kind,
+          conversationId: convId,
+          userId,
+          name: sender?.name || '',
+          message: view,
+        });
+        hub.sendToUser(m.id, { t: 'message', message: view });
+        if (!delivered) {
+          pushMessage(sender, m, store.getConversation(convId), labels[kind]).catch(() => {});
+        }
+      }
       return;
     }
 

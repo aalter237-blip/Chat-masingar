@@ -12,6 +12,8 @@ data class User(
     val about: String = "",
     val online: Boolean = false,
     val lastSeen: Long = 0L,
+    /** Base64 X25519 public key: the only thing the server needs for E2EE. */
+    val publicKey: String = "",
 )
 
 data class Conversation(
@@ -21,6 +23,9 @@ data class Conversation(
     val avatar: String = "",
     val members: List<User> = emptyList(),
     val peer: User? = null,
+    /** Raw JSON of the shared look of the chat (wallpaper, theme, ...). */
+    val settings: String = "",
+    val wallpaper: Wallpaper? = null,
     val unread: Int = 0,
     val muted: Boolean = false,
     val createdAt: Long = 0L,
@@ -41,6 +46,8 @@ data class Message(
     val status: String = "sent",
     val createdAt: Long = 0L,
     val deleted: Boolean = false,
+    /** body holds an E2EE envelope when this is true. */
+    val encrypted: Boolean = false,
 )
 
 data class CallItem(
@@ -54,6 +61,43 @@ data class CallItem(
     val endedAt: Long = 0L,
     val durationMs: Long = 0L,
 )
+
+/**
+ * Background of a chat. It is stored on the server and pushed to every
+ * member, so both people always see the same wallpaper.
+ * `css` keeps the exact look of the web client; Android parses the colours
+ * out of it (or the `id` when it is one of the presets below).
+ */
+data class Wallpaper(
+    val id: String = "none",
+    val css: String = "",
+)
+
+/** The presets are shared with the web client (web/js/app.js). */
+val WALLPAPERS: List<Wallpaper> = listOf(
+    Wallpaper("none", ""),
+    Wallpaper("teal", "linear-gradient(160deg,#005c4b,#0b141a)"),
+    Wallpaper("night", "linear-gradient(160deg,#1b2a4a,#0b141a)"),
+    Wallpaper("sunset", "linear-gradient(160deg,#7b2d5e,#f9a825)"),
+    Wallpaper("sand", "linear-gradient(160deg,#e6c9a8,#8d6e63)"),
+    Wallpaper("ocean", "linear-gradient(160deg,#0f7a63,#053f8c)"),
+    Wallpaper(
+        "dots",
+        "radial-gradient(circle at 20% 20%,#00a88433 2px,transparent 3px)," +
+            "radial-gradient(circle at 70% 60%,#25d36622 2px,transparent 3px)," +
+            "linear-gradient(160deg,#111b21,#0b141a)",
+    ),
+)
+
+fun Conversation.wallpaperOrNull(): Wallpaper? {
+    if (wallpaper != null) return wallpaper.takeIf { it.id != "none" }
+    if (settings.isBlank()) return null
+    return runCatching {
+        val o = JSONObject(settings).optJSONObject("wallpaper") ?: return null
+        val id = o.optString("id", "none")
+        WALLPAPERS.firstOrNull { it.id == id } ?: Wallpaper(id, o.optString("css"))
+    }.getOrNull()?.takeIf { it.id != "none" }
+}
 
 data class ContactItem(
     val name: String,
@@ -87,6 +131,7 @@ fun parseUser(o: JSONObject?): User? {
         about = o.s("about"),
         online = o.optBoolean("online", false),
         lastSeen = o.l("lastSeen"),
+        publicKey = o.s("publicKey"),
     )
 }
 
@@ -108,6 +153,7 @@ fun parseMessage(o: JSONObject?): Message? {
         status = o.s("status", "sent"),
         createdAt = o.l("createdAt"),
         deleted = o.optBoolean("deleted", false),
+        encrypted = o.optBoolean("encrypted", false),
     )
 }
 
@@ -125,6 +171,11 @@ fun parseConversation(o: JSONObject?): Conversation? {
         avatar = o.s("avatar"),
         members = members,
         peer = parseUser(o.optJSONObject("peer")),
+        settings = o.optJSONObject("settings")?.toString().orEmpty(),
+        wallpaper = o.optJSONObject("settings")?.optJSONObject("wallpaper")?.let { w ->
+            val id = w.optString("id", "none")
+            WALLPAPERS.firstOrNull { it.id == id } ?: Wallpaper(id, w.optString("css"))
+        },
         unread = o.optInt("unread", 0),
         muted = o.optBoolean("muted", false),
         createdAt = o.l("createdAt"),

@@ -31,9 +31,13 @@ import io.masingar.chat.ui.theme.MasingarTheme
 import io.masingar.chat.util.ContactsSync
 import io.masingar.chat.util.NetworkMonitor
 import io.masingar.chat.util.Notify
+import io.masingar.chat.util.ScreenCaptureWatcher
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    /** Screenshots taken while a chat is open are disclosed to the other side. */
+    private val captureWatcher = ScreenCaptureWatcher { type -> Repository.reportEvent(type) }
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -78,15 +82,22 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         Repository.foreground = true
         io.masingar.chat.work.SyncWorker.schedule(this)
+        captureWatcher.attach(this)
     }
 
     override fun onStop() {
+        captureWatcher.detach()
         Repository.foreground = false
         super.onStop()
     }
 
     private fun askPermissions() {
         val needed = mutableListOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA, Manifest.permission.READ_CONTACTS)
+        // only needed on Android 13 and older, to notice screenshots
+        if (Build.VERSION.SDK_INT < 34) {
+            needed += if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES
+            else Manifest.permission.READ_EXTERNAL_STORAGE
+        }
         if (Build.VERSION.SDK_INT >= 33) needed += Manifest.permission.POST_NOTIFICATIONS
         if (Build.VERSION.SDK_INT >= 31) needed += Manifest.permission.BLUETOOTH_CONNECT
         val missing = needed.filter {

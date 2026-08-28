@@ -94,11 +94,17 @@ object Http {
 
     fun me(): JSONObject = get("/api/me")
 
-    fun updateMe(name: String? = null, about: String? = null, avatar: String? = null): JSONObject =
+    fun updateMe(
+        name: String? = null,
+        about: String? = null,
+        avatar: String? = null,
+        publicKey: String? = null,
+    ): JSONObject =
         patch(JSONObject().apply {
             name?.let { put("name", it) }
             about?.let { put("about", it) }
             avatar?.let { put("avatar", it) }
+            publicKey?.let { put("public_key", it) }
         })
 
     private fun patch(body: JSONObject): JSONObject = call("PATCH", "/api/me", body)
@@ -148,13 +154,33 @@ object Http {
         mediaUrl: String = "",
         mediaMeta: JSONObject? = null,
         clientId: String = "",
+        encrypted: Boolean = false,
     ): JSONObject = post("/api/conversations/$convId/messages", JSONObject().apply {
         put("type", type)
         put("body", body)
         if (mediaUrl.isNotBlank()) put("mediaUrl", mediaUrl)
         mediaMeta?.let { put("mediaMeta", it) }
         if (clientId.isNotBlank()) put("clientId", clientId)
+        put("encrypted", encrypted)
     })
+
+    /* ------------------------- shared look of a chat ------------------------- */
+
+    /** Sets (or clears with null) the wallpaper for everybody in the chat. */
+    fun setWallpaper(convId: String, id: String, css: String): JSONObject =
+        post("/api/conversations/$convId/settings", JSONObject().apply {
+            put("settings", JSONObject().apply {
+                if (id == "none") put("wallpaper", JSONObject.NULL)
+                else put("wallpaper", JSONObject().apply { put("id", id); put("css", css) })
+            })
+        })
+
+    /* ---------------------------- group keys (E2EE) -------------------------- */
+
+    fun groupKeys(convId: String): JSONObject = get("/api/conversations/$convId/keys")
+
+    fun setGroupKeys(convId: String, keys: JSONArray): JSONObject =
+        post("/api/conversations/$convId/keys", JSONObject().apply { put("keys", keys) })
 
     fun read(convId: String): JSONObject = post("/api/conversations/$convId/read")
 
@@ -164,12 +190,12 @@ object Http {
 
     /* -------------------------------- uploads ------------------------------- */
 
-    fun upload(file: File, durationMs: Long = 0L): JSONObject {
+    fun upload(file: File, durationMs: Long = 0L, uploadName: String = file.name): JSONObject {
         val mime = MimeTypeMap.getSingleton()
             .getMimeTypeFromExtension(file.extension.lowercase())
             ?: "application/octet-stream"
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("file", file.name, file.asRequestBody(mime.toMediaType()))
+            .addFormDataPart("file", uploadName, file.asRequestBody(mime.toMediaType()))
             .apply { if (durationMs > 0) addFormDataPart("durationMs", durationMs.toString()) }
             .build()
         return call("POST", "/api/uploads", form = form)

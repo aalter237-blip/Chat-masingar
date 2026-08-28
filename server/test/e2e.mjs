@@ -70,6 +70,9 @@ function socket(token) {
     });
     ws.addEventListener('open', () => resolve(ws));
     ws.addEventListener('error', reject);
+    ws.clearInbox = () => {
+      inbox.length = 0;
+    };
     ws.waitFor = (match, timeout = 6000) =>
       new Promise((res, rej) => {
         const found = inbox.find(match);
@@ -239,6 +242,62 @@ async function main() {
     check('unknown route 404', notFound.status === 404);
     const logout = await api('/api/auth/logout', { method: 'POST', token: a.token, body: { refreshToken: 'x' } });
     check('logout ok', logout.status === 200);
+  }
+
+  console.log('wallpaper & privacy events');
+  {
+    const wsA = await socket(a.token);
+    const wsB = await socket(b.token);
+    await wsA.waitFor((m) => m.t === 'ready');
+    await wsB.waitFor((m) => m.t === 'ready');
+
+    /* shared chat wallpaper */
+    const wallpaper = { id: 'teal', css: 'linear-gradient(160deg,#005c4b,#0b141a)' };
+    const posted = await api(`/api/conversations/${convId}/settings`, {
+      method: 'POST',
+      token: a.token,
+      body: { settings: { wallpaper } },
+    });
+    check('wallpaper stored', posted.status === 200 && posted.json?.settings?.wallpaper?.id === 'teal');
+
+    const pushed = await wsB.waitFor((m) => m.t === 'conversation:settings');
+    check('wallpaper pushed live to the peer', pushed.settings?.wallpaper?.id === 'teal');
+
+    const listB = await api('/api/conversations', { token: b.token });
+    const convB = listB.json?.conversations?.find((c) => c.id === convId);
+    check('wallpaper visible on the other side', convB?.settings?.wallpaper?.id === 'teal');
+
+    /* group keys (E2EE) - the server only stores ciphertext */
+    const keys = await api(`/api/conversations/${convId}/keys`, {
+      method: 'POST',
+      token: a.token,
+      body: { keys: [{ userId: b.user.id, enc: 'ENCRYPTED-BLOB', nonce: 'NONCE123' }] },
+    });
+    check('group key stored for a member', keys.status === 200 && keys.json?.keys?.length === 1);
+    const keysB = await api(`/api/conversations/${convId}/keys`, { token: b.token });
+    check('member can fetch their wrapped key', keysB.json?.keys?.[0]?.enc === 'ENCRYPTED-BLOB');
+
+    /* screenshot / recording notice */
+    send(wsA, { t: 'event', type: 'screenshot', conversationId: convId, meta: { source: 'keyboard' } });
+    const event = await wsB.waitFor((m) => m.t === 'event' && m.type === 'screenshot');
+    check('screenshot notice delivered to the peer', event.userId === a.user.id);
+    const sysMsg = await wsB.waitFor((m) => m.t === 'message' && m.message?.type === 'system');
+    check('screenshot is recorded in the chat', /لقطة/.test(sysMsg.message.body), sysMsg.message?.body);
+
+    /* throttling */
+    wsB.clearInbox();
+    send(wsA, { t: 'event', type: 'screenshot', conversationId: convId });
+    let throttled = true;
+    try {
+      await wsB.waitFor((m) => m.t === 'event' && m.type === 'screenshot', 1200);
+      throttled = false;
+    } catch {
+      throttled = true;
+    }
+    check('duplicate notices are throttled', throttled);
+
+    wsA.close();
+    wsB.close();
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

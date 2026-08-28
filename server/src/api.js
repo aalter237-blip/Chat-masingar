@@ -247,6 +247,70 @@ router.post('/conversations/:id/read', auth, (req, res) => {
   return ok(res, { unread: 0 });
 });
 
+/* --------------------------- group keys (E2EE) ----------------------------- */
+
+/** Creator uploads the group key encrypted for every member. */
+router.post('/conversations/:id/keys', auth, async (req, res) => {
+  const convId = String(req.params.id);
+  if (!requireMember(convId, req.user.id)) return fail(res, 403, 'forbidden', 'غير مسموح');
+  const keys = Array.isArray(req.body?.keys) ? req.body.keys : [];
+  const members = store.listMembers(convId).map((m) => m.id);
+  const clean = keys
+    .filter((k) => members.includes(String(k.userId)))
+    .map((k) => ({ userId: String(k.userId), enc: String(k.enc || ''), nonce: String(k.nonce || '') }));
+  if (!clean.length) return fail(res, 400, 'bad_request', 'no keys');
+  const keys2 = store.setGroupKeys(convId, clean, req.user.id);
+  for (const m of store.listMembers(convId)) {
+    if (m.id === req.user.id) continue;
+    hub.sendToUser(m.id, { t: 'conversation:keys', conversationId: convId });
+  }
+  return ok(res, { keys: keys2 });
+});
+
+router.get('/conversations/:id/keys', auth, (req, res) => {
+  const convId = String(req.params.id);
+  if (!requireMember(convId, req.user.id)) return fail(res, 403, 'forbidden', 'غير مسموح');
+  return ok(res, { keys: store.getGroupKeys(convId) });
+});
+
+/** Shared per-conversation settings (chat wallpaper, theme, ...).
+ *  Whatever one side sets is broadcast live to every member. */
+router.get('/conversations/:id/settings', auth, (req, res) => {
+  const convId = String(req.params.id);
+  if (!requireMember(convId, req.user.id)) return fail(res, 403, 'forbidden', 'غير مسموح');
+  return ok(res, { settings: store.getConversationSettings(convId) });
+});
+
+router.post('/conversations/:id/settings', auth, async (req, res) => {
+  const convId = String(req.params.id);
+  if (!requireMember(convId, req.user.id)) return fail(res, 403, 'forbidden', 'غير مسموح');
+  const incoming = req.body?.settings && typeof req.body.settings === 'object' ? req.body.settings : {};
+  const allowed = ['wallpaper', 'theme', 'bubbleColor', 'accentColor'];
+  const changed = {};
+  for (const [key, value] of Object.entries(incoming)) {
+    if (!allowed.includes(key)) continue;
+    if (value === null) {
+      store.deleteConversationSetting(convId, key);
+      changed[key] = null;
+    } else {
+      store.setConversationSetting(convId, key, value, req.user.id);
+      changed[key] = value;
+    }
+  }
+  const settings = store.getConversationSettings(convId);
+  for (const m of store.listMembers(convId)) {
+    if (m.id === req.user.id) continue;
+    hub.sendToUser(m.id, {
+      t: 'conversation:settings',
+      conversationId: convId,
+      settings,
+      changed,
+      by: req.user.id,
+    });
+  }
+  return ok(res, { settings });
+});
+
 router.post('/conversations/:id/mute', auth, (req, res) => {
   const convId = String(req.params.id);
   if (!requireMember(convId, req.user.id)) return fail(res, 403, 'forbidden', 'غير مسموح');
