@@ -83,6 +83,8 @@ jobs:
           done
           cd ..
           node test/e2ee-live.mjs
+          cd test && npm install --no-save --no-audit --no-fund jsdom esbuild && cd ..
+          node test/web-two-clients.mjs http://127.0.0.1:3000
           kill $(cat /tmp/server2.pid) || true
 
       - name: Server log

@@ -118,7 +118,19 @@ router.post('/auth/logout', (req, res) => {
 router.get('/me', auth, (req, res) => ok(res, { user: store.publicUser(req.user) }));
 
 router.patch('/me', auth, (req, res) => {
+  const before = store.getUserById(req.user.id);
   const user = store.updateUser(req.user.id, req.body || {});
+  const key = store.publicUser(user)?.publicKey || '';
+  // a new identity key must reach the other devices, otherwise they would keep
+  // sealing messages for a key this account does not hold any more
+  if (key && key !== (before?.public_key || '')) {
+    for (const conv of store.listConversations(req.user.id)) {
+      for (const member of store.listMembers(conv.id)) {
+        if (member.id === req.user.id) continue;
+        hub.sendToUser(member.id, { t: 'user:key', userId: req.user.id, publicKey: key });
+      }
+    }
+  }
   return ok(res, { user: store.publicUser(user) });
 });
 

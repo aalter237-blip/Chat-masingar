@@ -655,6 +655,12 @@ object Repository {
                     if (convId == openConversationId) _messages.value = db.messages(convId)
                 }
             }
+            "user:key" -> {
+                // the peer changed device: remember its new identity key
+                val userId = frame.optString("userId")
+                val key = frame.optString("publicKey")
+                if (userId.isNotBlank() && key.isNotBlank()) E2eeEngine.rememberPeer(userId, key)
+            }
             "conversation:keys" -> {
                 // a fresh group key was distributed: drop the cached one and
                 // pick it up again on the next decrypt

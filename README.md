@@ -224,13 +224,16 @@ PATCH /api/me                             {name|about|avatar|public_key}
 ```
 
 ### إطارات WebSocket
-`ready · message · message:update · typing · receipt · presence · presence:state · conversation · conversation:settings · conversation:keys · event · call.invite · call.ringing · call.answer · call.ice · call.media · call.end · call.decline · call.busy`
+`ready · message · message:update · typing · receipt · presence · presence:state · conversation · conversation:settings · conversation:keys · user:key · event · call.invite · call.ringing · call.answer · call.ice · call.media · call.end · call.decline · call.busy`
 
 إطار التنبيهات من العميل إلى السيرفر:
 ```json
 { "t": "event", "type": "screenshot|recording|recording_stop", "conversationId": "c_…", "meta": {} }
 ```
 يحفظه السيرفر رسالة `system` داخل المحادثة ويبثّه فوراً للطرف الآخر (مع إشعار FCM إن كان خارج التطبيق).
+
+وإطار `user:key` يُبثّ لأعضاء محادثات المستخدم عند تغيّر مفتاحه العام (تثبيت جديد/جهاز جديد) حتى لا تُشفَّر
+الرسائل بمفتاح قديم لا يملكه صاحبه.
 
 ---
 
@@ -247,7 +250,8 @@ node test/verify-crypto.py        # 47 فحصاً: X25519/HKDF مقابل RFC 77
 node test/e2ee-web.mjs            # 13 فحصاً لمحرّك التشفير في المتصفح
 node test/e2ee-cross.mjs          # 13 فحصاً: الويب ↔ أندرويد يفتحان رسائل بعضهما
 cd server && node test/e2e.mjs    # 43 فحصاً: REST + WebSocket + الخلفية + التنبيهات
-node test/e2ee-live.mjs           # 11 فحصاً ضد سيرفر حقيقي: تشفير، ملفات، مجموعات، خلفية، تنبيهات
+node test/e2ee-live.mjs           # 12 فحصاً ضد سيرفر حقيقي: تشفير، ملفات، مجموعات، خلفية، تنبيهات
+node test/web-two-clients.mjs     # 20 فحصاً: **عميلان ويب حقيقيان** يتبادلان رسائل مشفّرة وخلفية وتنبيهات
 node test/web-smoke.mjs           # 12 فحصاً لواجهة الويب داخل DOM حقيقي (يحتاج: cd test && npm i jsdom esbuild)
 ```
 

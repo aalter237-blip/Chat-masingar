@@ -167,25 +167,37 @@ export class CryptoEngine {
     return this.identity.publicB64();
   }
 
-  /** Registers a peer public key (from the conversation / contact payloads). */
-  async rememberPeer(userId, b64) {
-    if (!b64 || this.peerB64.get(userId) === b64) return this.peers.get(userId) || null;
-    const key = await Identity.importPublic(b64);
-    if (key) {
-      this.peers.set(userId, key);
-      this.peerB64.set(userId, b64);
-    }
-    return key;
+  /**
+   * Registers a peer public key. The raw value is stored straight away and the
+   * CryptoKey is imported in the background, so a message can be sealed in the
+   * same tick without waiting for the asynchronous import.
+   */
+  rememberPeer(userId, b64) {
+    if (!b64 || !userId || !this.supported) return;
+    if (this.peerB64.get(userId) === b64 && this.peers.has(userId)) return;
+    this.peerB64.set(userId, b64);
+    this.peers.set(userId, { key: Identity.importPublic(b64).catch(() => null) });
   }
 
   hasPeer(userId) {
-    return this.peers.has(userId);
+    return this.peers.has(userId) && !!this.peerB64.get(userId);
+  }
+
+  /** Resolves the CryptoKey of a peer (null when unknown or invalid). */
+  async peerKey(userId) {
+    const entry = this.peers.get(userId);
+    if (!entry) return null;
+    try {
+      return await entry.key;
+    } catch {
+      return null;
+    }
   }
 
   /* -------------------------------- 1:1 ----------------------------------- */
 
   async pairwiseKey(peerUserId, conversationId, salt, myId) {
-    const peerKey = this.peers.get(peerUserId);
+    const peerKey = await this.peerKey(peerUserId);
     if (!peerKey || !this.identity) return null;
     const shared = new Uint8Array(
       await crypto.subtle.deriveBits({ name: 'X25519', public: peerKey }, this.identity.privateKey, 256)
@@ -203,7 +215,7 @@ export class CryptoEngine {
    */
   async encryptDirect({ conversationId, peerId, myId, payload }) {
     if (!this.supported || !this.identity) return null;
-    const peerKey = this.peers.get(peerId);
+    const peerKey = await this.peerKey(peerId);
     if (!peerKey) return null;
     const bytes = te.encode(JSON.stringify(payload));
     const eph = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
@@ -264,7 +276,7 @@ export class CryptoEngine {
   }
 
   async wrapGroupKey(conversationId, groupKey, memberId, myId) {
-    const peerKey = this.peers.get(memberId);
+    const peerKey = await this.peerKey(memberId);
     if (!peerKey || !this.identity) return null;
     const eph = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
     const ephPub = new Uint8Array(await crypto.subtle.exportKey('raw', eph.publicKey));
@@ -281,7 +293,7 @@ export class CryptoEngine {
   /** Unwraps the group key that the creator encrypted for us. */
   async unwrapGroupKey(conversationId, record, myId, creatorId) {
     if (!this.identity || !record?.enc) return null;
-    const creatorKey = this.peers.get(creatorId);
+    const creatorKey = await this.peerKey(creatorId);
     if (!creatorKey) return null;
     const ephemeral = await Identity.importPublic(record.epk);
     if (!ephemeral) return null;

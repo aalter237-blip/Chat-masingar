@@ -8,7 +8,8 @@
  * 3. web <-> android cross test (test/e2ee-cross.mjs)
  * 4. server REST/WebSocket e2e  (server/test/e2e.mjs, own server + temp db)
  * 5. live end-to-end            (test/e2ee-live.mjs, same server)
- * 6. web UI smoke test          (test/web-smoke.mjs, needs jsdom in test/node_modules)
+ * 6. two web clients            (test/web-two-clients.mjs, jsdom, same server)
+ * 7. web UI smoke test          (test/web-smoke.mjs, needs jsdom in test/node_modules)
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -85,6 +86,10 @@ try {
     step(
       'live end-to-end (encryption, wallpaper, notices)',
       run('node', ['test/e2ee-live.mjs'], { env: { BASE: `http://127.0.0.1:${PORT}` } }),
+    );
+    step(
+      'two web clients (jsdom): encryption, wallpaper, notices',
+      run('node', ['test/web-two-clients.mjs', `http://127.0.0.1:${PORT}`]),
     );
   }
 } finally {

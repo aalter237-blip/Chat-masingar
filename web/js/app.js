@@ -473,7 +473,12 @@ async function deliver(convId, payload) {
       encrypted = true;
     }
   } else if (state.e2ee) {
-    const peerId = conv?.peer?.id;
+    let peerId = conv?.peer?.id;
+    // the peer may have published its key after we loaded the list
+    if (peerId && !E2EE.hasPeer(peerId)) {
+      await loadConversations().catch(() => {});
+      registerPeers();
+    }
     if (peerId) {
       const envelope = await E2EE.encryptDirect({ conversationId: convId, peerId, myId: state.me.id, payload });
       if (envelope) {
@@ -1692,6 +1697,10 @@ rt.addEventListener('frame', async (ev) => {
     case 'conversation:keys':
       // a group key was (re)distributed: drop the cached one and reload
       E2EE.groupKeys.delete(f.conversationId);
+      break;
+    case 'user:key':
+      // the peer reinstalled / changed device: remember the new identity key
+      if (f.publicKey) E2EE.rememberPeer(f.userId, f.publicKey);
       break;
     case 'event':
       if (f.message) pushMessage(f.message.conversationId, f.message);
