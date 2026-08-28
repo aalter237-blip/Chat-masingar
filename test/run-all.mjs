@@ -10,6 +10,9 @@
  * 5. live end-to-end            (test/e2ee-live.mjs, same server)
  * 6. two web clients            (test/web-two-clients.mjs, jsdom, same server)
  * 7. web UI smoke test          (test/web-smoke.mjs, needs jsdom in test/node_modules)
+ *
+ * The last three suites drive the server started right here, so no server has
+ * to be running on port 3000 beforehand.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -98,8 +101,34 @@ try {
   rmSync(dataDir, { recursive: true, force: true });
 }
 
+/* 7. The UI smoke test gets its own fresh server: it logs a demo user in, and
+   the one time code for a phone number is rate limited, so reusing the server
+   above would see the limit the earlier suites already consumed. */
 if (process.env.SKIP_UI_TEST !== '1') {
-  step('web UI smoke (jsdom)', run('node', ['test/web-smoke.mjs']));
+  const uiPort = String(Number(PORT) + 1);
+  const uiDir = mkdtempSync(join(tmpdir(), 'masingar-ui-'));
+  const uiServer = spawn('node', ['src/index.js'], {
+    cwd: join(root, 'server'),
+    env: {
+      ...process.env,
+      PORT: uiPort,
+      DB_PATH: join(uiDir, 'test.db'),
+      SMS_PROVIDER: 'none',
+      NODE_ENV: 'development',
+    },
+    stdio: 'ignore',
+  });
+  try {
+    if (await waitForServer(`http://127.0.0.1:${uiPort}`)) {
+      step('web UI smoke (jsdom)', run('node', ['test/web-smoke.mjs', `http://127.0.0.1:${uiPort}`]));
+    } else {
+      step('web UI smoke (jsdom)', false);
+    }
+  } finally {
+    uiServer.kill('SIGTERM');
+    await sleep(300);
+    rmSync(uiDir, { recursive: true, force: true });
+  }
 }
 
 console.log('\n==================== summary ====================');
