@@ -1,0 +1,19 @@
+[Unit]
+Description=Masingar chat and calling server
+After=network.target
+
+[Service]
+Type=simple
+User=masingar
+WorkingDirectory=/opt/masingar/server
+EnvironmentFile=/opt/masingar/server/.env
+ExecStart=/usr/bin/node /opt/masingar/server/src/index.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -314,16 +314,16 @@ private fun CallsTab(items: List<io.masingar.chat.data.CallItem>, onCall: (Strin
             ) {
                 Avatar(peer)
                 Spacer(Modifier.width(12.dp))
+                val icon = if (call.type == "video") "🎥" else "📞"
+                val direction = when {
+                    call.state == "missed" && !outgoing -> stringResource(R.string.call_missed)
+                    outgoing -> stringResource(R.string.outgoing_call)
+                    else -> stringResource(R.string.incoming_call)
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = peer.name.ifBlank { Phone.pretty(peer.phone) }, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "${if (call.type == "video") "🎥" else "📞"} ${
-                            when {
-                                call.state == "missed" && !outgoing -> stringResource(R.string.call_missed)
-                                outgoing -> stringResource(R.string.outgoing_call)
-                                else -> stringResource(R.string.incoming_call)
-                            }
-                        } · ${Format.day(call.startedAt)}",
+                        text = "$icon $direction · ${Format.day(call.startedAt)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (call.state == "missed" && !outgoing) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant,

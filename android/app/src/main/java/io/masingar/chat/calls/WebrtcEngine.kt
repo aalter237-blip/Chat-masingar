@@ -20,7 +20,6 @@ import org.webrtc.MediaStream
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.RTCStatsReport
-import org.webrtc.RtpParameters
 import org.webrtc.RtpReceiver
 import org.webrtc.RtpSender
 import org.webrtc.RtpTransceiver
@@ -291,10 +290,11 @@ class WebrtcEngine(
         videoSender?.let { sender ->
             runCatching {
                 val params = sender.parameters
-                params.degradationPreference = if (enabled && !dataSaver)
-                    RtpParameters.DegradationPreference.BALANCED
-                else
-                    RtpParameters.DegradationPreference.MAINTAIN_RESOLUTION
+                setEnumField(
+                    params,
+                    "degradationPreference",
+                    if (enabled && !dataSaver) "BALANCED" else "MAINTAIN_RESOLUTION",
+                )
                 sender.parameters = params
             }
         }
@@ -308,8 +308,9 @@ class WebrtcEngine(
         runCatching {
             val params = audioSender?.parameters ?: return
             if (params.encodings.isEmpty()) return
-            params.encodings[0].maxBitrateBps = maxBitrate
-            params.encodings[0].networkPriority = RtpParameters.Priority.HIGH
+            val encoding = params.encodings[0]
+            setNumberField(encoding, "maxBitrateBps", maxBitrate)
+            setEnumField(encoding, "networkPriority", "HIGH")
             audioSender?.parameters = params
         }
     }
@@ -322,19 +323,50 @@ class WebrtcEngine(
         val cap = if (dataSaver) minOf(l.kbps, 320) else l.kbps
         runCatching {
             (capturer as? CameraVideoCapturer)?.changeCaptureFormat(l.width, l.height, l.fps)
+        }
+        runCatching {
             val params = videoSender?.parameters ?: return@runCatching
-            if (params.encodings.isEmpty()) return@runCatching
-            params.encodings[0].apply {
-                maxBitrateBps = cap * 1000
-                maxFramerate = l.fps
-                networkPriority = RtpParameters.Priority.LOW
+            if (params.encodings.isNotEmpty()) {
+                val encoding = params.encodings[0]
+                setNumberField(encoding, "maxBitrateBps", cap * 1000)
+                setNumberField(encoding, "maxFramerate", l.fps)
+                setNumberField(encoding, "scaleResolutionDownBy", 1)
+                setEnumField(encoding, "networkPriority", "LOW")
             }
-            params.degradationPreference = RtpParameters.DegradationPreference.BALANCED
+            setEnumField(params, "degradationPreference", "BALANCED")
             videoSender?.parameters = params
         }
         tuneAudio(if (target <= 0) 16000 else if (target == 1) 32000 else 48000)
         if (notify && changed) {
             listener.onNotice(if (target < next) Notice.QUALITY_DOWN else Notice.QUALITY_UP, LADDER[target].name)
+        }
+    }
+
+    /**
+     * libwebrtc exposes the encoding knobs as public fields whose exact numeric
+     * type changed between releases (Integer vs Double). Setting them through
+     * reflection keeps this code compiling - and working - with any 1.0.3xxxx
+     * build of the prebuilt AAR.
+     */
+    private fun setNumberField(target: Any, name: String, value: Number) {
+        runCatching {
+            val field = target.javaClass.getField(name)
+            val converted: Any = when (field.type) {
+                java.lang.Integer::class.java, java.lang.Integer.TYPE -> value.toInt()
+                java.lang.Long::class.java, java.lang.Long.TYPE -> value.toLong()
+                java.lang.Double::class.java, java.lang.Double.TYPE -> value.toDouble()
+                java.lang.Float::class.java, java.lang.Float.TYPE -> value.toFloat()
+                else -> value
+            }
+            field.set(target, converted)
+        }
+    }
+
+    private fun setEnumField(target: Any, name: String, constant: String) {
+        runCatching {
+            val field = target.javaClass.getField(name)
+            val match = field.type.enumConstants?.firstOrNull { (it as? Enum<*>)?.name == constant }
+            if (match != null) field.set(target, match)
         }
     }
 

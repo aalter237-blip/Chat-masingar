@@ -1,1 +1,212 @@
-# Chat-masingar
+# ماسنجر — Masingar
+
+تطبيق دردشة ومكالمات **صوتية وفيديو** يعمل على كل دول العالم، مبني ليقدّم أفضل جودة ممكنة على الشبكات الضعيفة (2G / 3G / 4G / 5G / Wi‑Fi).
+
+المشروع يحتوي على ثلاثة أجزاء تعمل معاً:
+
+| الجزء | الوصف |
+|---|---|
+| `server/` | سيرفر Node.js: مصادقة برقم الهاتف (OTP)، مزامنة جهات الاتصال، الدردشة، إشارات المكالمات (WebRTC)، رفع الملفات، إشعارات FCM |
+| `web/` | عميل ويب (عربي/إنجليزي، يعمل على الجوال والمتصفح) لتجربة الدردشة والمكالمات فوراً |
+| `android/` | تطبيق أندرويد كامل (Kotlin + Jetpack Compose + WebRTC) جاهز لبناء ملف APK |
+
+---
+
+## 1) تجربة سريعة (الآن)
+
+السيرفر يعمل في هذه المساحة على المنفذ `3000` — افتح الرابط من المعاينة المباشرة، وستظهر شاشة الدخول.
+
+للاختبار بسرعة:
+
+1. اضغط على أحد الأرقام التجريبية (مثل `+967771000001`) ثم **إرسال كود التحقق**.
+2. في الوضع التجريبي لا يُرسل SMS (لا يوجد مزوّد رسائل مضبوط)، لذلك يظهر الكود داخل التطبيق مباشرة.
+3. لاختبار مكالمة بين طرفين: افتح الرابط في **تبويبين** (أو في جوالك)، وسجّل الدخول بأرقام مختلفة
+   (`967771000001` / `967771000002` / `967771000003` / `12025550123`) ثم ابدأ مكالمة صوتية أو فيديو.
+
+> الحسابات التجريبية تُنشأ تلقائياً عند أول تشغيل (`DEMO_SEED=false` لتعطيلها في الإنتاج).
+
+تشغيل السيرفر يدوياً:
+
+```bash
+cd server
+npm install
+PORT=3000 SMS_PROVIDER=none node src/index.js
+# ثم افتح http://localhost:3000
+```
+
+---
+
+## 2) بناء ملف APK (أندرويد)
+
+### الطريقة الأولى — Android Studio (الأسهل)
+1. افتح Android Studio ← **File > Open** ← اختر مجلد `android`.
+2. انسخ `android/local.properties.example` إلى `android/local.properties` واضبط:
+   ```properties
+   SERVER_URL=https://your-server.example.com
+   DEFAULT_COUNTRY_CODE=967
+   ```
+3. **Build > Build Bundle(s)/APK(s) > Build APK(s)** — الناتج في
+   `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+### الطريقة الثانية — سطر الأوامر
+```bash
+cd android
+gradle wrapper --gradle-version 8.9      # مرة واحدة فقط (أو استخدم Gradle المثبت لديك)
+./gradlew assembleDebug                  # APK للتجربة
+./gradlew assembleRelease                # APK النهائي (universal + لكل معمارية)
+```
+الناتج: `android/app/build/outputs/apk/{debug,release}/*.apk`
+
+### الطريقة الثالثة — بناء سحابي تلقائي (GitHub Actions)
+انسخ الملف `docs/github-actions-ci.yml` إلى `.github/workflows/ci.yml` ثم ادفع:
+كل push سيبني ملفات APK ويضعها في تبويب **Artifacts**، ويشغّل اختبارات السيرفر أيضاً.
+
+### التوقيع للإنتاج
+أنشئ keystore ثم أضف بياناته في `android/local.properties`:
+```properties
+KEYSTORE_FILE=../masingar.jks
+KEYSTORE_PASSWORD=***
+KEY_ALIAS=masingar
+KEY_PASSWORD=***
+```
+
+### صلاحيات التطبيق
+ميكروفون، كاميرا، جهات الاتصال، الإشعارات، البلوتوث (لسماعات المكالمات)،
+العمل في الخلفية أثناء المكالمة. كلها تُطلب عند الحاجة فقط.
+
+---
+
+## 3) تشغيل السيرفر على استضافة (VPS)
+
+```bash
+# على سيرفر Ubuntu/Debian مع Docker
+git clone <repo> && cd Chat-masingar/deploy
+cp .env.example .env && nano .env        # املأ القيم (الأسرار، النطاق، TURN)
+docker compose up -d
+```
+
+أو بدون Docker:
+
+```bash
+cd server && npm install --omit=dev
+sudo cp ../deploy/systemd/masingar.service /etc/systemd/system/
+sudo systemctl enable --now masingar
+```
+
+### لماذا تحتاج TURN؟
+الاتصال المباشر بين الهواتف يفشل خلف **NAT متماثل** أو شبكات الجوال (وهي الحالة الشائعة في 2G/3G).
+خادم TURN يمرّر الوسائط كحل أخير، وبدونه تفشل نسبة كبيرة من المكالمات.
+`deploy/coturn/turnserver.conf` مضبوط على `3478/UDP` و`5349/TLS` و`443/TCP`
+(منفذ 443 هو الأنسب للشبكات المقيدة جداً).
+
+بعد تشغيل coturn ضع في إعدادات السيرفر:
+```bash
+TURN_SECRET=   # نفس static-auth-secret في turnserver.conf
+TURN_HOST=turn.example.com
+```
+السيرفر يولّد بيانات دخول مؤقتة (HMAC) لكل مستخدم عبر `/api/ice`، فلا تُكشف أسرار TURN أبداً.
+
+### إرسال رسائل SMS (كود التحقق)
+- `SMS_PROVIDER=none` → الكود يُعاد في الاستجابة (تطوير/تجربة فقط).
+- `SMS_PROVIDER=console` → يُطبع في سجل السيرفر.
+- `SMS_PROVIDER=twilio` → يحتاج `TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM`.
+- `SMS_PROVIDER=http` → يستدعي ويب‌هوك: `POST {to, code, app}`.
+
+### إشعارات المكالمات والتطبيق مغلق (FCM)
+1. أنشئ مشروع Firebase وأضف تطبيق أندرويد.
+2. انسخ القيم إلى `android/local.properties`:
+   `FCM_API_KEY / FCM_APP_ID / FCM_PROJECT_ID / FCM_SENDER_ID`
+3. في السيرفر: `FCM_PROJECT_ID / FCM_CLIENT_EMAIL / FCM_PRIVATE_KEY` (مفتاح حساب الخدمة JSON).
+بدون FCM تعمل المكالمات أثناء فتح التطبيق (أو في الخلفية ما دامت العملية حيّة).
+
+---
+
+## 4) كيف نحافظ على الجودة على الشبكات الضعيفة؟
+
+في `web/js/rtc.js` و`android/.../calls/WebrtcEngine.kt` نفس المنطق:
+
+1. **الصوت أولاً:** ترميز Opus أحادي القناة مع `DTX` و`FEC` داخل النطاق، ومعدل بث يبدأ من 16 كيلوبت على 2G ويرتفع حتى 96 حسب الشبكة.
+2. **سلم جودة للفيديو:** 180p ← 270p ← 360p ← 480p ← 720p، ويبدأ دائماً من الأسفل على بيانات الجوال.
+3. **قياس مستمر:** كل ثانية نقرأ RTT ونسبة فقد الحزم والبت المتاح من `getStats`:
+   - 3 عيّنات سيئة → ننزل درجة،
+   - 8 عيّنات جيدة مع سعة كافية → نصعد درجة.
+4. **تحجيم زمني (L1T3):** يمكن حذف إطارات دون تجميد الصورة عند الضغط.
+5. **التبديل للصوت فقط** عند بلوغ الشبكة حالة ميؤوس منها، ثم **العودة التلقائية للفيديو** متى تحسّنت.
+6. **إعادة الاتصال:** عند انقطاع ICE تتم إعادة التفاوض تلقائياً (`restartIce`) مع تراجع زمني.
+7. **IPv4 أولاً** (كثير من شبكات 2G/3G تكسر IPv6)، وترشيح IPv6 مضبوط في محرك أندرويد.
+8. **الطابور غير المتصل:** الرسائل تُحفظ محلياً وتُرسل تلقائياً عند عودة الإنترنت (Outbox + WorkManager).
+
+---
+
+## 5) بنية المشروع
+
+```
+server/
+  src/config.js       إعدادات البيئة
+  src/db.js           SQLite (node:sqlite أو better-sqlite3)
+  src/store.js        طبقة البيانات (مستخدمون، محادثات، رسائل، مكالمات)
+  src/api.js          REST: /api/auth, /api/conversations, /api/messages, /api/uploads, /api/ice …
+  src/ws.js           WebSocket: الحضور، الكتابة، الإيصالات، إشارات المكالمات
+  src/push.js         FCM HTTP v1
+  src/ice.js          بيانات دخول TURN المؤقتة
+  test/e2e.mjs        35 اختباراً شاملاً (تسجيل دخول، دردشة، إشارات مكالمة)
+web/                  عميل الويب (HTML/CSS/JS بدون خطوة بناء)
+android/              تطبيق أندرويد (Kotlin, Compose, WebRTC, Room-less SQLite cache, WorkManager)
+deploy/               docker-compose + coturn + nginx + systemd
+docs/                 ملف CI جاهز + ملاحظات إضافية
+```
+
+### واجهات REST الأساسية
+```
+POST /api/auth/otp/request      {phone}
+POST /api/auth/otp/verify       {phone, code}
+POST /api/contacts/sync         {contacts:[{hash,name}]}   (بصمات SHA-256 فقط)
+GET  /api/conversations
+POST /api/conversations         {userId|phone}  أو {type:'group', title, memberIds}
+GET  /api/conversations/:id/messages
+POST /api/conversations/:id/messages
+POST /api/conversations/:id/read
+POST /api/uploads               (multipart)
+GET  /api/ice                   STUN/TURN ببيانات مؤقتة
+GET  /api/sync?since=           مزامنة بعد الانقطاع
+```
+
+### إطارات WebSocket
+`ready · message · typing · receipt · presence · call.invite · call.ringing · call.answer · call.ice · call.media · call.end · call.decline · call.busy`
+
+---
+
+## 6) الاختبارات
+
+```bash
+cd server && node src/index.js &
+node test/e2e.mjs                 # 35 فحصاً: المصادقة + الدردشة + إشارات المكالمة
+
+npm i -D jsdom esbuild            # مرة واحدة
+node ../test/web-smoke.mjs        # 12 فحصاً لواجهة الويب داخل DOM حقيقي
+```
+
+---
+
+## 7) ملاحظات أمنية وتشغيلية
+
+- النقل محمي بـ TLS في الإنتاج (nginx + شهادات مجانية).
+- أرقام جهات الاتصال تُرفع **كبصمات SHA‑256** فقط؛ السيرفر لا يخزّن أرقام غير المستخدمين.
+- المصادقة JWT مع توكن تحديث، وجلسات قابلة للإبطاء.
+- الاتصال من التطبيق عبر HTTPS فقط (`network_security_config.xml`) باستثناء عناوين التطوير المحلية.
+- رفع الملفات محدود بـ 32MB وروابطها عشوائية (capability URLs).
+- التشفير من طرف لطرف (E2EE) غير مُفعّل في هذا الإصدار؛ النقل والخادم مشفّران، ويمكن إضافته لاحقاً.
+
+---
+
+## 8) خريطة الطريق القريبة
+
+- تشفير من طرف لطرف للمحادثات الثنائية.
+- مجموعات مع صلاحيات وروابط دعوة.
+- نسخ احتياطي سحابي اختياري.
+- مشاركة الشاشة أثناء المكالمة.
+- نسخة iOS.
+
+---
+
+رخصة المشروع: MIT.

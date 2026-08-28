@@ -91,10 +91,8 @@
             android:name=".calls.CallService"
             android:exported="false"
             android:foregroundServiceType="phoneCall|microphone|camera" />
-        <service
-            android:name=".net.SocketService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+        <!-- The realtime socket lives in the app process; FCM (below) wakes it
+             when the device is idle so calls can still ring. -->
 
         <service
             android:name=".push.PushService"
