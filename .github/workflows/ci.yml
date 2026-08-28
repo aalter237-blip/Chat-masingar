@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------- server ---
+  server-test:
+    name: Server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        working-directory: server
+        run: npm install --no-audit --no-fund
+
+      - name: Start server
+        working-directory: server
+        env:
+          PORT: 3000
+          SMS_PROVIDER: none
+        run: |
+          node src/index.js > /tmp/server.log 2>&1 &
+          echo $! > /tmp/server.pid
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/api/health && break
+            sleep 1
+          done
+
+      - name: API + signalling end-to-end test
+        working-directory: server
+        run: node test/e2e.mjs http://127.0.0.1:3000
+
+      - name: Server log
+        if: always()
+        run: tail -40 /tmp/server.log
+
+  # --------------------------------------------------------------- android ---
+  android-build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Gradle 8.9
+        run: |
+          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          sudo ln -sfn /opt/gradle-8.9/bin/gradle /usr/local/bin/gradle
+          gradle --version
+
+      - name: Generate the Gradle wrapper (handy for local builds)
+        working-directory: android
+        run: gradle wrapper --gradle-version 8.9 --distribution-type bin
+
+      - name: Compile and lint
+        working-directory: android
+        run: gradle :app:compileDebugKotlin --stacktrace
+
+      - name: Build debug APK
+        working-directory: android
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Build release APKs (per ABI + universal)
+        working-directory: android
+        run: gradle :app:assembleRelease --stacktrace
+
+      - name: Collect APKs
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/*.apk out/ || true
+          cp android/app/build/outputs/apk/release/*.apk out/ || true
+          ls -la out
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: masingar-apks
+          path: out/*.apk
+
+      - name: Upload Gradle wrapper (copy into android/ for offline builds)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-wrapper
+          path: |
+            android/gradlew
+            android/gradlew.bat
+            android/gradle/wrapper/gradle-wrapper.jar

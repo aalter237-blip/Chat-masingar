@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ماسنجر</string>
+
+    <!-- login -->
+    <string name="login_title">مرحباً بك في ماسنجر</string>
+    <string name="login_sub">سجّل الدخول برقم هاتفك للتواصل مع جهات الاتصال التي تستخدم التطبيق.</string>
+    <string name="phone_hint">رقم الهاتف</string>
+    <string name="code_hint">كود التحقق</string>
+    <string name="send_code">إرسال كود التحقق</string>
+    <string name="verify">تحقق ودخول</string>
+    <string name="resend_code">إعادة الإرسال</string>
+    <string name="your_name">اسمك</string>
+
+    <!-- tabs -->
+    <string name="tab_chats">الدردشات</string>
+    <string name="tab_calls">المكالمات</string>
+    <string name="tab_contacts">جهات الاتصال</string>
+    <string name="tab_settings">الإعدادات</string>
+
+    <!-- states -->
+    <string name="online">متصل</string>
+    <string name="offline">غير متصل</string>
+    <string name="last_seen">آخر ظهور %1$s</string>
+    <string name="typing">يكتب الآن…</string>
+    <string name="no_chats">لا توجد محادثات بعد</string>
+    <string name="no_calls">لا توجد مكالمات بعد</string>
+    <string name="no_contacts">لا يوجد أحد من جهات اتصالك يستخدم التطبيق بعد</string>
+    <string name="contacts_permission_needed">يحتاج التطبيق إذن جهات الاتصال ليعرض من يستخدم ماسنجر</string>
+    <string name="grant">منح الإذن</string>
+    <string name="search_hint">بحث بالاسم أو الرقم</string>
+
+    <!-- chat -->
+    <string name="message_hint">اكتب رسالة…</string>
+    <string name="reply">رد</string>
+    <string name="copy">نسخ</string>
+    <string name="delete">حذف</string>
+    <string name="message_deleted">تم حذف الرسالة</string>
+    <string name="attach_image">صورة</string>
+    <string name="attach_file">ملف</string>
+    <string name="record_voice">تسجيل صوتي</string>
+
+    <!-- calls -->
+    <string name="voice_call">مكالمة صوتية</string>
+    <string name="video_call">مكالمة فيديو</string>
+    <string name="incoming_voice_call">مكالمة صوتية واردة</string>
+    <string name="incoming_video_call">مكالمة فيديو واردة</string>
+    <string name="calling">جارٍ الاتصال…</string>
+    <string name="connecting">جارٍ الاتصال…</string>
+    <string name="connected">متصل</string>
+    <string name="reconnecting">إعادة الاتصال…</string>
+    <string name="call_ended">انتهت المكالمة</string>
+    <string name="call_failed">تعذّر إتمام المكالمة</string>
+    <string name="call_declined">تم رفض المكالمة</string>
+    <string name="call_missed">مكالمة فائتة</string>
+    <string name="call_busy">المستخدم مشغول الآن</string>
+    <string name="accept">رد</string>
+    <string name="decline">رفض</string>
+    <string name="end_call">إنهاء</string>
+    <string name="mute">كتم</string>
+    <string name="speaker">مكبر الصوت</string>
+    <string name="camera_off">إيقاف الكاميرا</string>
+    <string name="flip_camera">تبديل الكاميرا</string>
+    <string name="weak_network">الشبكة ضعيفة — جارٍ تحسين الجودة</string>
+    <string name="audio_only_notice">تم التبديل إلى الصوت فقط لتحسين الجودة</string>
+    <string name="video_restored">تحسّنت الشبكة — تم إرجاع الفيديو</string>
+    <string name="ongoing_call">مكالمة جارية</string>
+    <string name="missed_call_from">مكالمة فائتة من %1$s</string>
+    <string name="new_message">رسالة جديدة</string>
+
+    <!-- settings -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="profile">الملف الشخصي</string>
+    <string name="name">الاسم</string>
+    <string name="about">نبذة</string>
+    <string name="save">حفظ</string>
+    <string name="calls_quality">جودة المكالمات</string>
+    <string name="quality_saver">توفير البيانات</string>
+    <string name="quality_auto">تلقائية (موصى بها)</string>
+    <string name="quality_hd">عالية الدقة 720p</string>
+    <string name="auto_quality">ضبط الجودة تلقائياً حسب الشبكة</string>
+    <string name="data_saver">توفير استهلاك البيانات</string>
+    <string name="audio_only_fallback">التبديل إلى الصوت فقط عند ضعف الشبكة</string>
+    <string name="show_stats">إظهار إحصائيات الشبكة أثناء المكالمة</string>
+    <string name="language">اللغة</string>
+    <string name="theme">المظهر</string>
+    <string name="theme_dark">داكن</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_system">حسب النظام</string>
+    <string name="server">الخادم</string>
+    <string name="contacts_sync">مزامنة جهات الاتصال</string>
+    <string name="contacts_sync_now">مزامنة الآن</string>
+    <string name="notifications">الإشعارات</string>
+    <string name="about_app">حول التطبيق</string>
+    <string name="version">الإصدار %1$s (%2$d)</string>
+    <string name="logout">تسجيل الخروج</string>
+
+    <!-- notification channels -->
+    <string name="channel_messages">الرسائل</string>
+    <string name="channel_messages_desc">إشعارات الرسائل الجديدة</string>
+    <string name="channel_calls">المكالمات</string>
+    <string name="channel_calls_desc">إشعارات المكالمات الصوتية والفيديو</string>
+    <string name="channel_service">الاتصال بالخادم</string>
+
+    <!-- errors -->
+    <string name="error_network">تعذّر الاتصال بالخادم، تحقق من الإنترنت</string>
+    <string name="error_generic">حدث خطأ غير متوقع</string>
+    <string name="error_camera">تعذر استخدام الكاميرا</string>
+    <string name="error_microphone">تعذر استخدام الميكروفون</string>
+    <string name="error_permission">الأذونات المطلوبة غير متاحة</string>
+    <string name="add_contact">إضافة جهة اتصال</string>
+    <string name="saved">تم الحفظ</string>
+    <string name="outgoing_call">صادرة</string>
+    <string name="incoming_call">واردة</string>
+    <string name="new_group">مجموعة جديدة</string>
+    <string name="retry">إعادة المحاولة</string>
+    <string name="connecting_to_server">جارٍ الاتصال بالخادم…</string>
+    <string name="permissions_title">الأذونات المطلوبة</string>
+    <string name="permissions_body">يحتاج التطبيق إلى أذونات الميكروفون والكاميرا وجهات الاتصال لتقديم المكالمات وإظهار أصدقائك.</string>
+    <string name="syncing">جارٍ المزامنة…</string>
+    <string name="send_now">إرسال</string>
+    <string name="no_messages">لا توجد رسائل بعد — ابدأ المحادثة 👋</string>
+</resources>

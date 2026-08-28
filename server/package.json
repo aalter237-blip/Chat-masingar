@@ -1,0 +1,24 @@
+{
+  "name": "masingar-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Masingar Chat - signalling, messaging and presence server (REST + WebSocket)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "seed": "node src/seed.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "compression": "^1.7.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.7.0"
+  }
+}
