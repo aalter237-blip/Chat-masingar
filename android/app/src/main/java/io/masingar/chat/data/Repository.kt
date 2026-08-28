@@ -354,6 +354,7 @@ object Repository {
             val res = Http.setWallpaper(convId, wallpaper.id, wallpaper.css)
             val settings = res.optJSONObject("settings")
             if (settings != null) {
+                db.updateSettings(convId, settings.toString())
                 _conversations.update { list ->
                     list.map {
                         if (it.id == convId) it.copy(

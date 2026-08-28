@@ -2,7 +2,6 @@ package io.masingar.chat.crypto
 
 import android.content.Context
 import android.util.Base64
-import androidx.annotation.WorkerThread
 import org.json.JSONObject
 import java.io.File
 import java.security.SecureRandom
@@ -54,7 +53,6 @@ object E2eeEngine {
      * Loads (or creates) the identity and the cached group keys.
      * Must be called from a background thread after logging in.
      */
-    @WorkerThread
     fun init(context: Context, myId: String) {
         this.myId = myId
         if (!IdentityStore.supported) {
@@ -101,10 +99,6 @@ object E2eeEngine {
 
     /* --------------------------------- 1:1 ---------------------------------- */
 
-    /**
-     * Encrypts a JSON payload for one recipient.
-     * @return the envelope (base64) or null when encryption is impossible.
-     */
     /**
      * Encrypts a JSON payload for one recipient.
      * The envelope also carries a copy sealed for ourselves (sn/sct): the
@@ -203,7 +197,7 @@ object E2eeEngine {
         val nonce = ByteArray(12).also { random.nextBytes(it) }
         val info = "$GROUP|$conversationId|$senderId".toByteArray()
         val ct = runCatching { Aead.seal(key, payload.toByteArray(), info, nonce).first }.getOrNull() ?: return null
-        return envelope(g = true, null, nonce, ct)
+        return envelope(true, null, nonce, ct)
     }
 
     fun decryptGroup(conversationId: String, senderId: String, body: String): String? {

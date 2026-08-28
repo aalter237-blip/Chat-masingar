@@ -80,6 +80,15 @@ KEY_ALIAS=masingar
 KEY_PASSWORD=***
 ```
 
+### إن فشل البناء (استكشاف الأخطاء)
+
+| العَرَض | السبب | الحل |
+|---|---|---|
+| `Could not resolve org.webrtc:google-webrtc` | النسخة القديمة كانت على Bintray/JCenter فقط وهو مغلق | المشروع يستخدم الآن `io.getstream:stream-webrtc-android:1.3.10` من Maven Central بنفس واجهة `org.webrtc.*` |
+| خطأ في `compileDebugKotlin` | — | نزّل artifact باسم `kotlin-build-log` من صفحة العمل؛ السطر الأول فيه اسم الملف ورقم السطر |
+| `SDK location not found` | — | أنشئ `android/local.properties` فيه `sdk.dir=...` أو ثبّت Android SDK |
+| التطبيق لا يتصل بالسيرفر | `BuildConfig.SERVER_URL` الافتراضي `https://chat.example.com` | اكتب عنوان سيرفرك في `android/local.properties` باسم `SERVER_URL`، أو من شاشة الإعدادات داخل التطبيق |
+
 ### صلاحيات التطبيق
 ميكروفون، كاميرا، جهات الاتصال، الإشعارات، البلوتوث (لسماعات المكالمات)،
 العمل في الخلفية أثناء المكالمة. كلها تُطلب عند الحاجة فقط.

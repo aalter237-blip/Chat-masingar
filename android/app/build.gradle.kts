@@ -124,8 +124,12 @@ dependencies {
     // Phone number handling (E.164 for every country in the world)
     implementation("com.googlecode.libphonenumber:libphonenumber:8.13.52")
 
-    // Real time media (voice + video)
-    implementation("org.webrtc:google-webrtc:1.0.32006")
+    // Real time media (voice + video).
+    // The original `org.webrtc:google-webrtc` was only published to
+    // Bintray/JCenter, which is shut down, so a build using it cannot resolve
+    // its dependencies any more. Stream republishes an up to date build of the
+    // very same library (same org.webrtc.* API) on Maven Central.
+    implementation("io.getstream:stream-webrtc-android:1.3.10")
 
     // Push (optional, wakes the device for incoming calls)
     implementation("com.google.firebase:firebase-messaging:24.1.0")

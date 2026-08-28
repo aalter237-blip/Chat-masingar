@@ -151,9 +151,16 @@ jobs:
         working-directory: android
         run: gradle wrapper --gradle-version 8.9 --distribution-type bin
 
-      - name: Compile and lint
+      - name: Compile (Kotlin)
         working-directory: android
-        run: gradle :app:compileDebugKotlin --stacktrace
+        run: gradle :app:compileDebugKotlin --stacktrace 2>&1 | tee /tmp/kotlin.log
+
+      - name: Upload the compiler log when the build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-build-log
+          path: /tmp/kotlin.log
 
       - name: Build debug APK
         working-directory: android

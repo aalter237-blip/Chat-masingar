@@ -281,13 +281,16 @@ private fun ChatsTab(
 
 private fun previewOf(message: Message?): String {
     if (message == null) return ""
-    val opened = Repository.payloadOf(message)?.optString("x").orEmpty()
-    val text = if (message.encrypted) opened else message.body
+    val payload = Repository.payloadOf(message)
+    val text = if (message.encrypted) payload?.optString("x").orEmpty() else message.body
     return when (message.type) {
         "image" -> "📷 صورة"
         "video" -> "🎥 فيديو"
         "audio" -> "🎤 رسالة صوتية"
-        "file" -> "📎 ${runCatching { org.json.JSONObject(Repository.payloadOf(message)?.toString().orEmpty()).optJSONObject("m")?.optString("name").orEmpty() }.getOrDefault("").ifBlank { "ملف" }}"
+        "file" -> {
+            val name = payload?.optJSONObject("m")?.optString("name").orEmpty()
+            "📎 " + name.ifBlank { "ملف" }
+        }
         "call" -> "📞 مكالمة"
         else -> text.ifBlank { if (message.encrypted) "🔒 رسالة مشفّرة" else "" }
     }

@@ -392,7 +392,10 @@ private fun MessageBubble(message: Message, conversation: Conversation) {
                         if (text.isNotBlank()) Text(text)
                     }
                     message.type == "audio" -> AudioRow(message)
-                    message.type == "file" -> Text("📎 ${payloadName(payload).ifBlank { message.body.ifBlank { "ملف" } }}")
+                    message.type == "file" -> {
+                        val name = payloadName(payload).ifBlank { message.body.ifBlank { "ملف" } }
+                        Text("📎 $name")
+                    }
                     message.type == "call" -> Text("📞 ${message.body}")
                     locked -> Text(text = "🔒 رسالة مشفّرة", textAlign = TextAlign.Start, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     else -> Text(text = text, textAlign = TextAlign.Start)
@@ -442,10 +445,12 @@ private fun MessageBubble(message: Message, conversation: Conversation) {
 private fun AudioRow(message: Message) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var player by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    val playerState = remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var player by playerState
     var playing by remember { mutableStateOf(false) }
     DisposableEffect(Unit) {
-        onDispose { runCatching { player?.release() } }
+        // reads the state object, not the value, so the latest player is freed
+        onDispose { runCatching { playerState.value?.release() } }
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -465,7 +470,7 @@ private fun AudioRow(message: Message) {
                 val file = Repository.mediaFile(context, message) ?: return@launch
                 val mp = android.media.MediaPlayer().apply {
                     setDataSource(file.absolutePath)
-                    setOnCompletionListener { playing = false }
+                    setOnCompletionListener { _ -> playing = false }
                     prepare()
                     start()
                 }

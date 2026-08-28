@@ -17,8 +17,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // WebRTC prebuilt binaries live in Google's Maven repository; the
-        // entry below is a safety net for mirrors that host the same AAR.
+        // WebRTC (io.getstream:stream-webrtc-android) is resolved from Maven
+        // Central; JitPack is kept as a safety net for forks hosted there.
         maven { url = uri("https://jitpack.io") }
     }
 }
