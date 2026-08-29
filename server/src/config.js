@@ -69,12 +69,14 @@ export const config = {
 
   /**
    * OTP behaviour:
-   *   'none'    -> dev, the verification code is returned by the API
-   *   'console' -> the code is printed in the server log
-   *   'textbee' -> sent as a real SMS through https://textbee.dev (your Android
-   *                phone acts as the gateway, messages leave from your SIM)
-   *   'twilio'  -> Twilio Messages API
-   *   'http'    -> generic POST {to, code, app} webhook
+   *   'none'     -> dev, the verification code is returned by the API
+   *   'console'  -> the code is printed in the server log
+   *   'textbee'  -> sent as a real SMS through https://textbee.dev (your Android
+   *                 phone acts as the gateway, messages leave from your SIM)
+   *   'twilio'   -> Twilio Messages API
+   *   'http'     -> generic POST {to, code, app} webhook
+   *   'whatsapp' -> message delivered on WhatsApp through the official Meta
+   *                 Cloud API (no QR code, no local gateway process)
    */
   smsProvider: process.env.SMS_PROVIDER || smsDefault,
   smsHttpUrl: process.env.SMS_HTTP_URL || '',
@@ -86,6 +88,22 @@ export const config = {
   /** TextBee (https://textbee.dev) - Android phone as an SMS gateway. */
   textbeeApiKey: textbeeKey,
   textbeeDeviceId: textbeeDevice,
+
+  /**
+   * WhatsApp (https://developers.facebook.com/docs/whatsapp/cloud-api)
+   * Business-initiated OTP messages MUST use an approved template, so we send
+   * the code as the first body parameter of a configurable template. No QR code
+   * is involved: the server talks straight to the Meta Cloud API.
+   */
+  whatsappBaseUrl: (process.env.WHATSAPP_BASE_URL || 'https://graph.facebook.com').replace(/\/+$/, ''),
+  whatsappApiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
+  whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+  whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
+  whatsappTemplateName: process.env.WHATSAPP_TEMPLATE_NAME || 'masingar_otp',
+  whatsappTemplateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'ar',
+  whatsappTimeoutMs: Number(process.env.WHATSAPP_TIMEOUT_MS || 10000),
+  whatsappRetries: Number(process.env.WHATSAPP_RETRIES ?? 1),
+  whatsappRetryDelayMs: Number(process.env.WHATSAPP_RETRY_DELAY_MS || 1500),
 
   /**
    * The gateway forwards the message to a phone, so it can be slow or briefly
