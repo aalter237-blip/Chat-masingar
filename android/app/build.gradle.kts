@@ -97,6 +97,10 @@ dependencies {
     // AndroidX
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
+    // Pin a modern Fragment: registerForActivityResult() requires Fragment >= 1.3.0,
+    // and the transitive version resolved in CI triggered the lint error
+    // InvalidFragmentVersionForActivityResult in lintVitalRelease.
+    implementation("androidx.fragment:fragment-ktx:1.8.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-service:2.8.7")
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
