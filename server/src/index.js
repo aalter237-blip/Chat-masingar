@@ -91,7 +91,7 @@ server.listen(config.port, config.host, () => {
     if (!config.textbeeApiKey) log('SMS   : WARNING textbee is selected but TEXTBEE_API_KEY is empty -> no SMS will be sent');
     else log(`SMS   : textbee device=${config.textbeeDeviceId || '(account default)'} base=${config.textbeeBaseUrl}`);
   }
-  log(`TURN  : ${config.turnSecret && config.turnHost ? `coturn ${config.turnHost}` : 'STUN only (set TURN_SECRET/TURN_HOST for relaying)'}`);
+  log(`TURN  : ${config.turnSecret && config.turnHost ? `coturn ${config.turnHost}` : config.freeTurn ? 'free public relay (set TURN_SECRET/TURN_HOST for your own)' : 'STUN only (set TURN_SECRET/TURN_HOST for relaying)'}`);
   log(`PUSH  : ${process.env.FCM_PROJECT_ID ? 'FCM configured' : 'disabled (set FCM_* to enable)'}`);
   if (seeded.created) log(`Demo users: ${seeded.users.map((u) => u.phone).join(' ')}`);
   log('-------------------------------------------------------------');

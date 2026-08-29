@@ -4,25 +4,43 @@
  * Kept dependency free on purpose (no dotenv) so the server boots anywhere.
  */
 import { randomBytes } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(here, '..');
 
-const secret = process.env.JWT_SECRET || randomBytes(48).toString('hex');
+/**
+ * JWT signing secret.
+ *
+ * Best: set JWT_SECRET explicitly via the environment.
+ * Fallback: a random secret is generated on first boot and persisted to
+ * `data/.jwt-secret` (mode 0600), so user sessions survive server restarts
+ * even when no environment variable was configured.
+ */
+function loadOrCreateJwtSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  const file = join(ROOT, 'data', '.jwt-secret');
+  try {
+    const existing = readFileSync(file, 'utf8').trim();
+    if (existing.length >= 32) return existing;
+  } catch { /* first boot: create below */ }
+  const generated = randomBytes(48).toString('hex');
+  mkdirSync(join(ROOT, 'data'), { recursive: true });
+  writeFileSync(file, generated + '\n', { mode: 0o600 });
+  return generated;
+}
+const secret = loadOrCreateJwtSecret();
 
 /**
- * TextBee credentials (https://textbee.dev).
- *
- * They are filled in so a fresh copy of the server can send verification codes
- * without any setup. They are only defaults: every value can still be
- * overridden with an environment variable, which is what you should do on a
- * shared or public deployment. Treat them like a password - if this repository
- * is ever shared, generate a new API key in the TextBee dashboard first.
+ * TextBee credentials (https://textbee.dev) - read ONLY from the environment.
+ * No credentials live in the source tree: put your API key in deploy/.env.
+ * (The key that was committed here before is compromised - rotate it in the
+ * TextBee dashboard if you ever used it.)
  */
-const textbeeKey = process.env.TEXTBEE_API_KEY || 'txb_Mb3zLpf3aieAcrMSfw7Ck3m5RB9DxkhK';
-const textbeeDevice = process.env.TEXTBEE_DEVICE_ID || '6a922b36f3dc6f0f7be9169a';
+const textbeeKey = process.env.TEXTBEE_API_KEY || '';
+const textbeeDevice = process.env.TEXTBEE_DEVICE_ID || '';
 
 /** With a gateway configured the verification code is sent as a real SMS. */
 const smsDefault = textbeeKey
@@ -101,6 +119,12 @@ export const config = {
 
   /** TURN / STUN */
   turnSecret: process.env.TURN_SECRET || '',
+  /**
+   * When no private TURN (TURN_SECRET+TURN_HOST) is configured, hand clients
+   * a zero-cost public relay so calls still connect on restrictive mobile
+   * networks. Set FREE_TURN=false once you run your own coturn only.
+   */
+  freeTurn: (process.env.FREE_TURN || 'true') !== 'false',
   turnUrls: (process.env.TURN_URLS ||
     'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302')
     .split(',')

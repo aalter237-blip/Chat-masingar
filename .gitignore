@@ -20,6 +20,8 @@ android/.idea/
 *.aab
 *.iml
 .gradle/
+# Firebase config contains API credentials - keep it local, never in git
+google-services.json
 
 # --- editors / os ---
 .DS_Store

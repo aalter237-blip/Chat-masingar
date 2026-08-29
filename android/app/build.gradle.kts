@@ -6,6 +6,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Firebase push (wakes the phone for incoming calls) is switched on simply by
+// dropping `google-services.json` into this folder - see docs/FIREBASE_SETUP.md.
+// Without the file the build works unchanged, just without background push.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 /* Values a developer can override in android/local.properties (never committed) */
 val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
