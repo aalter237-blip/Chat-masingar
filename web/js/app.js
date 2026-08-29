@@ -332,6 +332,10 @@ function initLogin() {
       const note = $('#demo-note');
       if (res.provider === 'none') {
         note.textContent = 'وضع تجريبي: لم يتم إرسال رسالة نصية (لا يوجد مزوّد SMS مضبوط) — استخدم الكود الظاهر بالأعلى.';
+      } else if (res.provider === 'whatsapp' && res.delivered) {
+        note.textContent = 'تم إرسال كود التحقق عبر واتساب إلى رقمك.';
+      } else if (res.provider === 'whatsapp') {
+        note.textContent = 'تعذّر إرسال رسالة واتساب — تأكّد من ضبط WHATSAPP_PHONE_NUMBER_ID و WHATSAPP_ACCESS_TOKEN والقالب المعتمد، ثم أعد المحاولة.';
       } else if (res.delivered) {
         note.textContent = 'تم إرسال كود التحقق برسالة نصية إلى رقمك.';
       } else {

@@ -49,8 +49,16 @@ router.get('/health', (_req, res) =>
     time: now(),
     users: store.userCount(),
     online: hub.onlineUsers().length,
-    /** how verification codes leave the box: none | console | textbee | twilio | http */
+    /** how verification codes leave the box: none | console | textbee | twilio | http | whatsapp */
     sms: config.smsProvider,
+    /**
+     * For SMS_PROVIDER=whatsapp this tells the caller whether the Meta Cloud API
+     * credentials are actually set, and whether a template + language is named.
+     * Kept out of the provider name so the OTP provisioning can explain itself.
+     */
+    whatsappConfigured:
+      config.smsProvider !== 'whatsapp' ||
+      Boolean(config.whatsappPhoneNumberId && config.whatsappAccessToken && config.whatsappTemplateName),
     /**
      * `true` only on a throwaway box (no SMS gateway): the server then hands
      * the code back with the API. Clients show the demo shortcuts for this.
@@ -61,11 +69,34 @@ router.get('/health', (_req, res) =>
 
 /* ------------------------------- auth -------------------------------- */
 
+router.get('/auth/whatsapp/status', (_req, res) => {
+  const configured =
+    config.smsProvider === 'whatsapp' &&
+    Boolean(config.whatsappPhoneNumberId && config.whatsappAccessToken);
+  const sameTemplate = Boolean(config.whatsappTemplateName);
+  return ok(res, {
+    provider: config.smsProvider,
+    configured,
+    phoneNumberIdSet: Boolean(config.whatsappPhoneNumberId),
+    accessTokenSet: Boolean(config.whatsappAccessToken),
+    templateSet: sameTemplate,
+    language: config.whatsappTemplateLanguage,
+  });
+});
+
 router.post('/auth/otp/request', async (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   if (phone.length < 8 || phone.length > 15) return fail(res, 400, 'bad_phone', 'رقم الهاتف غير صالح');
   const limit = otpLimiter.check(phone);
   if (!limit.ok) return fail(res, 429, 'rate_limited', `حاول بعد ${limit.retryAfter} ثانية`);
+
+  if (
+    config.smsProvider === 'whatsapp' &&
+    (!config.whatsappPhoneNumberId || !config.whatsappAccessToken)
+  ) {
+    return fail(res, 503, 'provider_not_configured',
+      'إرسال واتساب غير مُفعّل: اضبط WHATSAPP_PHONE_NUMBER_ID و WHATSAPP_ACCESS_TOKEN');
+  }
 
   const { code, expires, delivered, provider } = await sendOtp(phone);
   const isNew = !store.getUserByPhone(phone);

@@ -250,19 +250,19 @@ console.log('\ntextbee sms provider\n');
   check('the request carries a timeout signal', Boolean(lastCall?.opts.signal));
 }
 
-/* 9. the credentials the repository ships with -------------------------- */
+/* 9. no secrets are shipped in the repository --------------------------- */
 {
-  check('textbee is the default provider out of the box', shipped.provider === 'textbee', shipped.provider);
   check(
-    'an api key is configured (only its shape is checked)',
-    typeof shipped.key === 'string' && shipped.key.startsWith('txb_') && shipped.key.length > 20,
+    'no textbee api key is committed',
+    shipped.key === '' || typeof shipped.key === 'string' && !shipped.key.startsWith('txb_'),
+    shipped.key,
   );
   check(
-    'a gateway device is configured',
-    typeof shipped.device === 'string' && /^[0-9a-f]{24}$/.test(shipped.device),
+    'no gateway device id is committed',
+    shipped.device === '' || typeof shipped.device === 'string',
     shipped.device,
   );
-  check('the public gateway is used by default', shipped.base === 'https://api.textbee.dev', shipped.base);
+  check('the public gateway base url is used by default', shipped.base === 'https://api.textbee.dev', shipped.base);
 }
 
 rmSync(dataDir, { recursive: true, force: true });

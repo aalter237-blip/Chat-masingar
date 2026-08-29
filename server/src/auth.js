@@ -84,12 +84,70 @@ export function otpText(code) {
 }
 
 /**
+ * Sends one WhatsApp message through the official Meta Cloud API.
+ *
+ * Meta only lets a business send a template message first, so we send the OTP
+ * as the first body variable of `whatsappTemplateName`. There is no QR code
+ * involved and no local gateway process to keep alive.
+ *
+ * @returns true when Meta accepted the message. A refusal (4xx) is reported
+ * immediately; a network error or a server error is retried.
+ */
+async function whatsappSend(phone, code) {
+  const base = String(config.whatsappBaseUrl || 'https://graph.facebook.com').replace(/\/+$/, '');
+  const version = 'v' + String(config.whatsappApiVersion || 'v20.0').replace(/^v/i, '');
+  const phoneId = String(config.whatsappPhoneNumberId || '');
+  const url = `${base}/${version}/${encodeURIComponent(phoneId)}/messages`;
+  const attempts = Math.max(1, Number(config.whatsappRetries) + 1);
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.whatsappAccessToken}`,
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: '+' + phone,
+          type: 'template',
+          template: {
+            name: config.whatsappTemplateName,
+            language: { code: config.whatsappTemplateLanguage },
+            components: [{
+              type: 'body',
+              parameters: [{ type: 'text', text: code }],
+            }],
+          },
+        }),
+        signal: AbortSignal.timeout(Number(config.whatsappTimeoutMs) || 10000),
+      });
+
+      if (res.ok) return true;
+
+      const detail = (await res.text().catch(() => '')).slice(0, 300);
+      if (res.status < 500) {
+        log(`sms: whatsapp refused (${res.status})`, detail);
+        return false;
+      }
+      log(`sms: whatsapp error ${res.status} (attempt ${attempt}/${attempts})`, detail);
+    } catch (err) {
+      log(`sms: whatsapp attempt ${attempt}/${attempts} failed ->`, err.message);
+    }
+    if (attempt < attempts) await sleep(Number(config.whatsappRetryDelayMs) || 1500);
+  }
+  return false;
+}
+
+/**
  * Send a verification code.
- * provider 'none'   -> code is returned to the caller (development / demo)
- * provider 'console'-> code is printed in the server log
- * provider 'textbee'-> real SMS through textbee.dev (Android phone gateway)
- * provider 'twilio' -> Twilio Verify / Messages API
- * provider 'http'   -> generic POST {to, code} webhook
+ * provider 'none'     -> code is returned to the caller (development / demo)
+ * provider 'console'  -> code is printed in the server log
+ * provider 'textbee'  -> real SMS through textbee.dev (Android phone gateway)
+ * provider 'twilio'   -> Twilio Verify / Messages API
+ * provider 'http'     -> generic POST {to, code} webhook
+ * provider 'whatsapp' -> WhatsApp message through the official Meta Cloud API
  */
 export async function sendOtp(phone) {
   const code = randomCode();
@@ -98,7 +156,10 @@ export async function sendOtp(phone) {
 
   let delivered = false;
   try {
-    if (config.smsProvider === 'textbee' && config.textbeeApiKey) {
+    if (config.smsProvider === 'whatsapp' && config.whatsappPhoneNumberId && config.whatsappAccessToken) {
+      delivered = await whatsappSend(phone, code);
+      if (!delivered) log(`sms: whatsapp could not deliver the code to +${phone}`);
+    } else if (config.smsProvider === 'textbee' && config.textbeeApiKey) {
       delivered = await textbeeSend(phone, code);
       if (!delivered) log(`sms: textbee could not deliver the code to +${phone}`);
     } else if (config.smsProvider === 'twilio' && config.twilioSid && config.twilioToken) {
