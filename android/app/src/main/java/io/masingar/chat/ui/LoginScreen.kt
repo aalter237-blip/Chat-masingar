@@ -136,26 +136,36 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                 scope.launch {
                     loading = true
                     try {
-                        withContext(Dispatchers.IO) {
-                            val e164 = Phone.normalize("+$country$phone", Phone.deviceRegion(context))
-                            if (stage == "phone") {
-                                val res = Http.requestOtp(e164)
-                                val dev = res.optString("devCode")
-                                info = when {
-                                    dev.isNotBlank() -> {
-                                        code = dev
-                                        "وضع تجريبي: كود التحقق $dev"
-                                    }
-                                    res.optBoolean("delivered", false) ->
-                                        "تم إرسال كود التحقق برسالة SMS إلى رقمك"
-                                    else ->
-                                        "تعذّر إرسال الرسالة الآن — أعد المحاولة بعد قليل"
-                                }
-                            } else {
-                                verify()
+                        val currentStage = stage
+                        val otpResult = if (currentStage == "phone") {
+                            withContext(Dispatchers.IO) {
+                                val e164 = Phone.normalize("+$country$phone", Phone.deviceRegion(context))
+                                Http.requestOtp(e164)
                             }
+                        } else {
+                            withContext(Dispatchers.IO) { verify() }
+                            null
                         }
-                        if (stage == "phone") stage = "code" else onLoggedIn()
+                        // Compose state must only be changed on the main thread. In
+                        // particular, assigning `code` from the IO block used to
+                        // crash the screen on demo servers that return devCode.
+                        if (currentStage == "phone") {
+                            val res = otpResult ?: error("empty OTP response")
+                            val dev = res.optString("devCode")
+                            info = when {
+                                dev.isNotBlank() -> {
+                                    code = dev
+                                    "وضع تجريبي: كود التحقق $dev"
+                                }
+                                res.optBoolean("delivered", false) ->
+                                    "تم إرسال كود التحقق برسالة SMS إلى رقمك"
+                                else ->
+                                    "تعذّر إرسال الرسالة الآن — أعد المحاولة بعد قليل"
+                            }
+                            stage = "code"
+                        } else {
+                            onLoggedIn()
+                        }
                     } catch (t: Throwable) {
                         error = t.message
                     } finally {
