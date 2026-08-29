@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -295,24 +296,29 @@ private fun StatsPanel(stats: CallStats, modifier: Modifier = Modifier) {
 
 @Composable
 private fun VideoRenderer(track: VideoTrack?, mirror: Boolean, modifier: Modifier) {
-    val eglContext = remember { CallManager.eglContext() }
+    // Read the shared EGL context LIVE (no remember): it becomes available only
+    // after the WebRTC engine is created, and it must be rebuilt when a new
+    // engine replaces the old one - reusing a released context crashes.
+    val eglContext = CallManager.eglContext()
     if (eglContext == null) return
-    AndroidView(
-        factory = { ctx ->
-            SurfaceViewRenderer(ctx).apply {
-                init(eglContext, null)
-                setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
-                setEnableHardwareScaler(true)
-                setMirror(mirror)
-            }
-        },
-        update = { view ->
-            track?.addSink(view)
-            view.setMirror(mirror)
-        },
-        onRelease = { view -> track?.removeSink(view); view.release() },
-        modifier = modifier,
-    )
+    key(eglContext) {
+        AndroidView(
+            factory = { ctx ->
+                SurfaceViewRenderer(ctx).apply {
+                    init(eglContext, null)
+                    setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+                    setEnableHardwareScaler(true)
+                    setMirror(mirror)
+                }
+            },
+            update = { view ->
+                track?.addSink(view)
+                view.setMirror(mirror)
+            },
+            onRelease = { view -> track?.removeSink(view); view.release() },
+            modifier = modifier,
+        )
+    }
 }
 
 @Composable

@@ -583,6 +583,7 @@ class WebrtcEngine(
     /* --------------------------------- teardown ------------------------------- */
 
     fun dispose() {
+        if (disposed) return
         disposed = true
         mainHandler.removeCallbacks(statsRunnable)
         runCatching { capturer?.stopCapture() }
@@ -599,5 +600,25 @@ class WebrtcEngine(
         private const val STREAM_ID = "masingar"
         private const val AUDIO_TRACK_ID = "masingar-audio"
         private const val VIDEO_TRACK_ID = "masingar-video"
+
+        @Volatile private var nativeInitialized = false
+
+        /** PeerConnectionFactory.initialize() must run exactly once per process. */
+        private fun initNativeOnce(appContext: Context) {
+            if (nativeInitialized) return
+            synchronized(WebrtcEngine::class.java) {
+                if (nativeInitialized) return
+                runCatching {
+                    PeerConnectionFactory.initialize(
+                        PeerConnectionFactory.InitializationOptions.builder(appContext)
+                            .setEnableInternalTracer(false)
+                            // IPv4 first: many 2G/3G carriers and cheap routers break IPv6 ICE
+                            .setFieldTrials("WebRTC-IPv6Default/Disabled/")
+                            .createInitializationOptions(),
+                    )
+                }
+                nativeInitialized = true
+            }
+        }
     }
 }

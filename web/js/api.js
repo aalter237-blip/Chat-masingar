@@ -34,16 +34,29 @@ async function request(method, path, body, isForm = false) {
   const headers = {};
   if (session.token) headers.Authorization = `Bearer ${session.token}`;
   if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json';
-  const res = await fetch('/api' + path, {
-    method,
-    headers,
-    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
-  });
+  let res;
   let json = null;
-  try {
-    json = await res.json();
-  } catch {
-    json = { ok: false, message: 'Invalid server response' };
+  // The hosted server (Bonto) sleeps when idle and answers the first request
+  // with an HTML "waking up" page (HTTP 200, no JSON). Retry a few times with
+  // a short wait instead of failing - otherwise the OTP/login flow reports
+  // an error while the container is simply waking up.
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch('/api' + path, {
+      method,
+      headers,
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
+    });
+    try {
+      json = await res.json();
+      break;
+    } catch {
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 4000 * (attempt + 1)));
+        continue;
+      }
+      json = { ok: false, message: 'Invalid server response' };
+      break;
+    }
   }
   if (res.status === 401) {
     // try a refresh once

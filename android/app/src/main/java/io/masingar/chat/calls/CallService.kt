@@ -37,6 +37,10 @@ class CallService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // The service can be the FIRST component to run in a cold process
+        // (incoming-call push): make sure the notification channel exists
+        // before buildNotification() below, or startForeground throws.
+        runCatching { Notify.createChannels(this) }
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         previousMode = audioManager.mode
     }
@@ -165,7 +169,11 @@ class CallService : Service() {
                 runCatching { acquire(60 * 60 * 1000L) }
             }
         }
-        if (type != "video" && proximityLock == null && pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+        // isWakeLockLevelSupported() only exists on API 31+ - calling it on
+        // Android 8-10 (our minSdk) would crash with NoSuchMethodError.
+        val levelSupported = Build.VERSION.SDK_INT >= 31 &&
+            pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)
+        if (type != "video" && proximityLock == null && levelSupported) {
             proximityLock = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "Masingar:proximity").apply {
                 setReferenceCounted(false)
                 runCatching { acquire() }
