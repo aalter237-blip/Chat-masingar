@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build Debug & Release APK
+    name: Build single Release APK
     runs-on: ubuntu-latest
 
     defaults:
@@ -37,30 +37,23 @@ jobs:
           sudo ln -sfn /opt/gradle-8.9/bin/gradle /usr/local/bin/gradle
           gradle --version
 
-      - name: Build Debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
-
-      - name: Build Release APK
+      - name: Build Release APK (single file, Android 8+)
         run: gradle :app:assembleRelease --no-daemon --stacktrace
-        continue-on-error: true
 
-      - name: List the APKs
-        if: success() || failure()
+      - name: Verify exactly one APK was produced
         run: |
-          echo "--- debug ---";   ls -la app/build/outputs/apk/debug/   || true
-          echo "--- release ---"; ls -la app/build/outputs/apk/release/ || true
+          shopt -s nullglob
+          apks=( app/build/outputs/apk/release/*.apk )
+          echo "APKs found: ${#apks[@]}"
+          for a in "${apks[@]}"; do echo " - $a"; done
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly 1 apk, found ${#apks[@]}"
+            exit 1
+          fi
 
-      - name: Upload Debug APK
+      - name: Upload the APK (single file)
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 14
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        if: success() || failure()
-        with:
-          name: app-release
+          name: Masingar.apk
           path: android/app/build/outputs/apk/release/*.apk
-          retention-days: 14
+          retention-days: 30
