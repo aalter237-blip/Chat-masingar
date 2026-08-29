@@ -2,7 +2,7 @@
 # local.properties is NOT committed (see .gitignore).
 
 # Address of your Masingar server (must be HTTPS in production)
-SERVER_URL=https://chat.example.com
+SERVER_URL=https://chatmassage.bonto.run
 
 # Country calling code used when a number is typed without one
 DEFAULT_COUNTRY_CODE=967

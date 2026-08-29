@@ -27,7 +27,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += setOf("ar", "en")
 
-        buildConfigField("String", "SERVER_URL", "\"${prop("SERVER_URL", "https://chat.example.com")}\"")
+        buildConfigField("String", "SERVER_URL", "\"${prop("SERVER_URL", "https://chatmassage.bonto.run")}\"")
         buildConfigField("String", "DEFAULT_COUNTRY_CODE", "\"${prop("DEFAULT_COUNTRY_CODE", "967")}\"")
         // Firebase (optional): fill these to wake the device for incoming calls
         buildConfigField("String", "FCM_API_KEY", "\"${prop("FCM_API_KEY")}\"")
