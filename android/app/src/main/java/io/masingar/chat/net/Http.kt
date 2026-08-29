@@ -63,25 +63,28 @@ object Http {
         var attempt = 0
         while (true) {
             attempt++
+            var parsed: JSONObject? = null
+            var httpCode = 0
             client.newCall(builder.build()).execute().use { res ->
                 val text = res.body?.string().orEmpty()
-                val parsed = runCatching { JSONObject(text) }.getOrNull()
-                if (parsed != null) {
-                    if (!res.isSuccessful) {
-                        throw ApiException(
-                            parsed.optString("message").ifBlank { "HTTP ${res.code}" },
-                            parsed.optString("code"),
-                            res.code,
-                        )
-                    }
-                    return parsed
-                }
-                if (attempt < 3) {
-                    Thread.sleep(4000L * attempt)
-                    continue
-                }
-                throw ApiException("تعذّر فهم استجابة الخادم — أعد المحاولة")
+                parsed = runCatching { JSONObject(text) }.getOrNull()
+                httpCode = res.code
             }
+            if (parsed != null) {
+                if (httpCode < 200 || httpCode >= 300) {
+                    throw ApiException(
+                        parsed.optString("message").ifBlank { "HTTP $httpCode" },
+                        parsed.optString("code"),
+                        httpCode,
+                    )
+                }
+                return parsed
+            }
+            if (attempt < 3) {
+                Thread.sleep(4000L * attempt)
+                continue
+            }
+            throw ApiException("تعذّر فهم استجابة الخادم — أعد المحاولة")
         }
     }
 
