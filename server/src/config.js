@@ -12,6 +12,23 @@ export const ROOT = join(here, '..');
 
 const secret = process.env.JWT_SECRET || randomBytes(48).toString('hex');
 
+/**
+ * TextBee credentials (https://textbee.dev).
+ *
+ * They are filled in so a fresh copy of the server can send verification codes
+ * without any setup. They are only defaults: every value can still be
+ * overridden with an environment variable, which is what you should do on a
+ * shared or public deployment. Treat them like a password - if this repository
+ * is ever shared, generate a new API key in the TextBee dashboard first.
+ */
+const textbeeKey = process.env.TEXTBEE_API_KEY || 'txb_Mb3zLpf3aieAcrMSfw7Ck3m5RB9DxkhK';
+const textbeeDevice = process.env.TEXTBEE_DEVICE_ID || '6a922b36f3dc6f0f7be9169a';
+
+/** With a gateway configured the verification code is sent as a real SMS. */
+const smsDefault = textbeeKey
+  ? 'textbee'
+  : (process.env.NODE_ENV === 'production' ? 'console' : 'none');
+
 export const config = {
   env: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 3000),
@@ -41,7 +58,7 @@ export const config = {
    *   'twilio'  -> Twilio Messages API
    *   'http'    -> generic POST {to, code, app} webhook
    */
-  smsProvider: process.env.SMS_PROVIDER || (process.env.NODE_ENV === 'production' ? 'console' : 'none'),
+  smsProvider: process.env.SMS_PROVIDER || smsDefault,
   smsHttpUrl: process.env.SMS_HTTP_URL || '',
   smsHttpToken: process.env.SMS_HTTP_TOKEN || '',
   twilioSid: process.env.TWILIO_ACCOUNT_SID || '',
@@ -49,8 +66,8 @@ export const config = {
   twilioFrom: process.env.TWILIO_FROM || '',
 
   /** TextBee (https://textbee.dev) - Android phone as an SMS gateway. */
-  textbeeApiKey: process.env.TEXTBEE_API_KEY || '',
-  textbeeDeviceId: process.env.TEXTBEE_DEVICE_ID || '',
+  textbeeApiKey: textbeeKey,
+  textbeeDeviceId: textbeeDevice,
   textbeeBaseUrl: (process.env.TEXTBEE_BASE_URL || 'https://api.textbee.dev').replace(/\/+$/, ''),
 
   /** Body of the verification SMS. `${code}` (or {{code}}) is replaced. */

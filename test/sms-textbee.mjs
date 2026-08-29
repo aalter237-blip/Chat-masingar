@@ -51,6 +51,14 @@ process.env.DB_PATH = join(dataDir, 'sms.db');
 const auth = await import('../server/src/auth.js');
 const { config } = await import('../server/src/config.js');
 
+/* the values the repository ships with, before anything is overridden */
+const shipped = {
+  provider: config.smsProvider,
+  key: config.textbeeApiKey,
+  device: config.textbeeDeviceId,
+  base: config.textbeeBaseUrl,
+};
+
 function loadWith(values) {
   Object.assign(config, values);
   return { auth, config };
@@ -177,6 +185,21 @@ console.log('\ntextbee sms provider\n');
     auth.otpText('123456') === 'a 123456 b 123456',
     auth.otpText('123456'),
   );
+}
+
+/* 7. the credentials the repository ships with -------------------------- */
+{
+  check('textbee is the default provider out of the box', shipped.provider === 'textbee', shipped.provider);
+  check(
+    'an api key is configured (only its shape is checked)',
+    typeof shipped.key === 'string' && shipped.key.startsWith('txb_') && shipped.key.length > 20,
+  );
+  check(
+    'a gateway device is configured',
+    typeof shipped.device === 'string' && /^[0-9a-f]{24}$/.test(shipped.device),
+    shipped.device,
+  );
+  check('the public gateway is used by default', shipped.base === 'https://api.textbee.dev', shipped.base);
 }
 
 rmSync(dataDir, { recursive: true, force: true });
