@@ -5,12 +5,16 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:   # عشان تقدر تشغّله يدويًا
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build Debug & Release APK
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: android      # ← مشروع الأندرويد في مجلد فرعي
 
     steps:
       - name: Checkout code
@@ -21,26 +25,36 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+          # بدون cache: gradle - هو سبب الخطأ السابق
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Install Gradle 8.9
+        run: |
+          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          sudo ln -sfn /opt/gradle-8.9/bin/gradle /usr/local/bin/gradle
+          gradle --version
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
-        continue-on-error: true   # لو فشل التوقيع ما يوقف كل شيء
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+        continue-on-error: true
+
+      - name: List the APKs
+        if: success() || failure()
+        run: |
+          echo "--- debug ---";   ls -la app/build/outputs/apk/debug/   || true
+          echo "--- release ---"; ls -la app/build/outputs/apk/release/ || true
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
       - name: Upload Release APK
@@ -48,5 +62,5 @@ jobs:
         if: success() || failure()
         with:
           name: app-release
-          path: app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/*.apk
           retention-days: 14
