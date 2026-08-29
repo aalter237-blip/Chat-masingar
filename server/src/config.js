@@ -68,6 +68,16 @@ export const config = {
   /** TextBee (https://textbee.dev) - Android phone as an SMS gateway. */
   textbeeApiKey: textbeeKey,
   textbeeDeviceId: textbeeDevice,
+
+  /**
+   * The gateway forwards the message to a phone, so it can be slow or briefly
+   * unreachable. Every attempt is bounded by a timeout, a failed attempt is
+   * retried once, and a refusal from the gateway (4xx: bad key, unknown device,
+   * no credits) is never retried because it would not change the answer.
+   */
+  textbeeTimeoutMs: Number(process.env.TEXTBEE_TIMEOUT_MS || 10000),
+  textbeeRetries: Number(process.env.TEXTBEE_RETRIES ?? 1),
+  textbeeRetryDelayMs: Number(process.env.TEXTBEE_RETRY_DELAY_MS || 1500),
   textbeeBaseUrl: (process.env.TEXTBEE_BASE_URL || 'https://api.textbee.dev').replace(/\/+$/, ''),
 
   /** Body of the verification SMS. `${code}` (or {{code}}) is replaced. */

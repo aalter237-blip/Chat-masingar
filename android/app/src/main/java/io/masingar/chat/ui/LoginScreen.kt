@@ -141,11 +141,15 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                             if (stage == "phone") {
                                 val res = Http.requestOtp(e164)
                                 val dev = res.optString("devCode")
-                                if (dev.isNotBlank()) {
-                                    code = dev
-                                    info = "وضع تجريبي: كود التحقق $dev"
-                                } else {
-                                    info = null
+                                info = when {
+                                    dev.isNotBlank() -> {
+                                        code = dev
+                                        "وضع تجريبي: كود التحقق $dev"
+                                    }
+                                    res.optBoolean("delivered", false) ->
+                                        "تم إرسال كود التحقق برسالة SMS إلى رقمك"
+                                    else ->
+                                        "تعذّر إرسال الرسالة الآن — أعد المحاولة بعد قليل"
                                 }
                             } else {
                                 verify()

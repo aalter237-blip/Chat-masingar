@@ -31,9 +31,23 @@ const check = (name, cond, extra = '') => {
 
 let lastCall = null;
 let nextStatus = 200;
+let networkErrors = 0; // how many attempts should fail with a network error
+let calls = 0;
+
+function resetStub({ status = 200, errors = 0 } = {}) {
+  lastCall = null;
+  nextStatus = status;
+  networkErrors = errors;
+  calls = 0;
+}
 
 globalThis.fetch = async (url, opts = {}) => {
+  calls++;
   lastCall = { url: String(url), opts };
+  if (networkErrors > 0) {
+    networkErrors--;
+    throw new Error('getaddrinfo ENOTFOUND api.textbee.dev');
+  }
   return {
     ok: nextStatus >= 200 && nextStatus < 300,
     status: nextStatus,
@@ -79,7 +93,7 @@ console.log('\ntextbee sms provider\n');
   );
 
   check('provider is textbee', config.smsProvider === 'textbee');
-  lastCall = null;
+  resetStub();
   const res = await auth.sendOtp('967771000001');
 
   check('provider reported back', res.provider === 'textbee', res.provider);
@@ -119,7 +133,7 @@ console.log('\ntextbee sms provider\n');
   const { auth } = await loadWith(
     { smsProvider: 'textbee', textbeeApiKey: 'txb_test_key', textbeeDeviceId: '', textbeeBaseUrl: 'https://api.textbee.dev' },
   );
-  lastCall = null;
+  resetStub();
   await auth.sendOtp('12025550123');
   check(
     'falls back to the gateway endpoint',
@@ -135,11 +149,11 @@ console.log('\ntextbee sms provider\n');
   const { auth } = await loadWith(
     { smsProvider: 'textbee', textbeeApiKey: 'txb_test_key', textbeeDeviceId: 'dev-1', textbeeBaseUrl: 'https://api.textbee.dev' },
   );
-  nextStatus = 402;
+  resetStub({ status: 402 });
   const res = await auth.sendOtp('967771000002');
   check('gateway error is not fatal', res.delivered === false);
   check('the code is still stored and returned', /^\d{6}$/.test(res.code));
-  nextStatus = 200;
+  check('a refusal is not retried', calls === 1, `calls=${calls}`);
 }
 
 /* 4. no api key -> nothing is sent, the server still works ------------- */
@@ -147,7 +161,7 @@ console.log('\ntextbee sms provider\n');
   const { auth } = await loadWith(
     { smsProvider: 'textbee', textbeeApiKey: '', textbeeDeviceId: 'dev-1', textbeeBaseUrl: 'https://api.textbee.dev' },
   );
-  lastCall = null;
+  resetStub();
   const res = await auth.sendOtp('967771000003');
   check('no request is made without an api key', lastCall === null);
   check('code is still issued', /^\d{6}$/.test(res.code));
@@ -164,7 +178,7 @@ console.log('\ntextbee sms provider\n');
       smsText: 'code: {{code}}',
     },
   );
-  lastCall = null;
+  resetStub();
   const res = await auth.sendOtp('967771000004');
   const body = JSON.parse(lastCall?.opts.body || '{}');
   check('{{code}} is replaced', body.message === `code: ${res.code}`, body.message);
@@ -187,7 +201,56 @@ console.log('\ntextbee sms provider\n');
   );
 }
 
-/* 7. the credentials the repository ships with -------------------------- */
+/* 7. a slow or flaky gateway is retried, a refusal is not ---------------- */
+{
+  const { auth } = loadWith({
+    smsProvider: 'textbee',
+    textbeeApiKey: 'k',
+    textbeeDeviceId: 'dev-3',
+    textbeeBaseUrl: 'https://api.textbee.dev',
+    textbeeRetries: 1,
+    textbeeRetryDelayMs: 10,
+    textbeeTimeoutMs: 10000,
+  });
+
+  resetStub({ errors: 1 });
+  let res = await auth.sendOtp('967771000005');
+  check('a dropped connection is retried', calls === 2, `calls=${calls}`);
+  check('the retry succeeds', res.delivered === true);
+
+  resetStub({ status: 503 });
+  res = await auth.sendOtp('967771000006');
+  check('a gateway outage is retried once', calls === 2, `calls=${calls}`);
+  check('and reported as not delivered', res.delivered === false);
+
+  resetStub({ status: 401 });
+  res = await auth.sendOtp('967771000007');
+  check('a bad api key is refused without a retry', calls === 1, `calls=${calls}`);
+  check('and reported as not delivered', res.delivered === false);
+
+  resetStub({ errors: 9 });
+  const before = Date.now();
+  res = await auth.sendOtp('967771000008');
+  check('gives up after the configured attempts', calls === 2 && res.delivered === false, `calls=${calls}`);
+  check('and never hangs', Date.now() - before < 3000);
+}
+
+/* 8. every request is bounded by a timeout ------------------------------- */
+{
+  const { auth } = loadWith({
+    smsProvider: 'textbee',
+    textbeeApiKey: 'k',
+    textbeeDeviceId: 'dev-4',
+    textbeeBaseUrl: 'https://api.textbee.dev',
+    textbeeRetries: 0,
+    textbeeTimeoutMs: 8000,
+  });
+  resetStub();
+  await auth.sendOtp('967771000009');
+  check('the request carries a timeout signal', Boolean(lastCall?.opts.signal));
+}
+
+/* 9. the credentials the repository ships with -------------------------- */
 {
   check('textbee is the default provider out of the box', shipped.provider === 'textbee', shipped.provider);
   check(

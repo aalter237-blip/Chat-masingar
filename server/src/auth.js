@@ -31,6 +31,52 @@ export function verifyToken(token, expected = 'access') {
  * Body of the verification SMS (TextBee / Twilio).
  * `${code}` and `{{code}}` are replaced by the one time code.
  */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Sends one SMS through TextBee.
+ *
+ * @returns true when the gateway accepted the message. A refusal (4xx) is
+ * reported immediately; a network error or a server error is retried.
+ */
+async function textbeeSend(phone, code) {
+  const base = String(config.textbeeBaseUrl || 'https://api.textbee.dev').replace(/\/+$/, '');
+  const url = config.textbeeDeviceId
+    ? `${base}/api/v1/gateway/devices/${encodeURIComponent(config.textbeeDeviceId)}/send-sms`
+    : `${base}/api/v1/gateway/send-sms`;
+  const attempts = Math.max(1, Number(config.textbeeRetries) + 1);
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.textbeeApiKey,
+        },
+        body: JSON.stringify({
+          recipients: ['+' + phone],
+          message: otpText(code),
+        }),
+        signal: AbortSignal.timeout(Number(config.textbeeTimeoutMs) || 10000),
+      });
+
+      if (res.ok) return true;
+
+      const detail = (await res.text().catch(() => '')).slice(0, 200);
+      if (res.status < 500) {
+        log(`sms: textbee refused (${res.status})`, detail);
+        return false;
+      }
+      log(`sms: textbee error ${res.status} (attempt ${attempt}/${attempts})`, detail);
+    } catch (err) {
+      log(`sms: textbee attempt ${attempt}/${attempts} failed ->`, err.message);
+    }
+    if (attempt < attempts) await sleep(Number(config.textbeeRetryDelayMs) || 1500);
+  }
+  return false;
+}
+
 export function otpText(code) {
   return String(config.smsText || '${code}')
     .replace(/\$\{code\}/g, code)
@@ -53,23 +99,8 @@ export async function sendOtp(phone) {
   let delivered = false;
   try {
     if (config.smsProvider === 'textbee' && config.textbeeApiKey) {
-      const base = String(config.textbeeBaseUrl || 'https://api.textbee.dev').replace(/\/+$/, '');
-      const url = config.textbeeDeviceId
-        ? `${base}/api/v1/gateway/devices/${encodeURIComponent(config.textbeeDeviceId)}/send-sms`
-        : `${base}/api/v1/gateway/send-sms`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': config.textbeeApiKey,
-        },
-        body: JSON.stringify({
-          recipients: ['+' + phone],
-          message: otpText(code),
-        }),
-      });
-      delivered = res.ok;
-      if (!res.ok) log('sms: textbee error', res.status, await res.text().catch(() => ''));
+      delivered = await textbeeSend(phone, code);
+      if (!delivered) log(`sms: textbee could not deliver the code to +${phone}`);
     } else if (config.smsProvider === 'twilio' && config.twilioSid && config.twilioToken) {
       const basic = Buffer.from(`${config.twilioSid}:${config.twilioToken}`).toString('base64');
       const body = new URLSearchParams({

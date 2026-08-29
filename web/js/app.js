@@ -329,9 +329,14 @@ function initLogin() {
         dev.textContent = `${t('codeLabel')}: ${res.devCode} — (${t('demoUsers')})`;
         $('#code').value = res.devCode;
       }
-      $('#demo-note').textContent = res.delivered
-        ? ''
-        : 'وضع تجريبي: لم يتم إرسال رسالة نصية (لا يوجد مزوّد SMS مضبوط) — استخدم الكود الظاهر بالأعلى.';
+      const note = $('#demo-note');
+      if (res.provider === 'none') {
+        note.textContent = 'وضع تجريبي: لم يتم إرسال رسالة نصية (لا يوجد مزوّد SMS مضبوط) — استخدم الكود الظاهر بالأعلى.';
+      } else if (res.delivered) {
+        note.textContent = 'تم إرسال كود التحقق برسالة نصية إلى رقمك.';
+      } else {
+        note.textContent = 'تعذّر إرسال رسالة SMS الآن — تحقّق من اتصال بوابة الإرسال ثم أعد المحاولة.';
+      }
       btn.textContent = t('verify');
       $('#code').focus();
     } catch (e2) {
