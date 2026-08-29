@@ -56,17 +56,32 @@ object Http {
             val token = Prefs.token
             if (token.isNotBlank()) builder.header("Authorization", "Bearer $token")
         }
-        client.newCall(builder.build()).execute().use { res ->
-            val text = res.body?.string().orEmpty()
-            val parsed = runCatching { JSONObject(text) }.getOrNull()
-            if (!res.isSuccessful) {
-                throw ApiException(
-                    parsed?.optString("message") ?: "HTTP ${res.code}",
-                    parsed?.optString("code").orEmpty(),
-                    res.code,
-                )
+        // The hosted server (Bonto) sleeps when idle and answers the first
+        // request with an HTML "waking up" page (HTTP 200, no JSON). Wait a
+        // few seconds and retry until a real JSON answer comes back - without
+        // this the user would see "couldn't send the code" on a cold server.
+        var attempt = 0
+        while (true) {
+            attempt++
+            client.newCall(builder.build()).execute().use { res ->
+                val text = res.body?.string().orEmpty()
+                val parsed = runCatching { JSONObject(text) }.getOrNull()
+                if (parsed != null) {
+                    if (!res.isSuccessful) {
+                        throw ApiException(
+                            parsed.optString("message").ifBlank { "HTTP ${res.code}" },
+                            parsed.optString("code"),
+                            res.code,
+                        )
+                    }
+                    return parsed
+                }
+                if (attempt < 3) {
+                    Thread.sleep(4000L * attempt)
+                    continue
+                }
+                throw ApiException("تعذّر فهم استجابة الخادم — أعد المحاولة")
             }
-            return parsed ?: JSONObject().apply { put("ok", true) }
         }
     }
 

@@ -19,7 +19,8 @@ android {
 
     defaultConfig {
         applicationId = "io.masingar.chat"
-        minSdk = 24
+        // Android 8.0 (API 26) is the minimum supported platform
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
@@ -64,14 +65,8 @@ android {
         }
     }
 
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("armeabi-v7a", "arm64-v8a", "x86_64")
-            isUniversalApk = true
-        }
-    }
+    // No ABI split: the build must produce exactly ONE apk per variant that
+    // works on every Android 8+ device (all ABIs packaged inside it).
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -91,7 +86,8 @@ android {
             excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES")
         }
         jniLibs {
-            // WebRTC ships all ABIs in one AAR; keep them, the APK split handles size
+            // WebRTC ships all ABIs in one AAR; keep them all so the single
+            // APK runs on armv7 / arm64 / x86_64 devices
             keepDebugSymbols += "**/libjingle_peerconnection_so.so"
         }
     }
@@ -101,6 +97,10 @@ dependencies {
     // AndroidX
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
+    // Pin a modern Fragment: registerForActivityResult() requires Fragment >= 1.3.0,
+    // and the transitive version resolved in CI triggered the lint error
+    // InvalidFragmentVersionForActivityResult in lintVitalRelease.
+    implementation("androidx.fragment:fragment-ktx:1.8.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-service:2.8.7")
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")

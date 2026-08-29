@@ -171,25 +171,25 @@ jobs:
           name: kotlin-build-log
           path: /tmp/kotlin.log
 
-      - name: Build debug APK
-        working-directory: android
-        run: gradle :app:assembleDebug --stacktrace
-
-      - name: Build release APKs (per ABI + universal)
+      - name: Build release APK (single file, Android 8+)
         working-directory: android
         run: gradle :app:assembleRelease --stacktrace
 
-      - name: Collect APKs
+      - name: Collect the single APK and verify the count
         run: |
           mkdir -p out
-          cp android/app/build/outputs/apk/debug/*.apk out/ || true
           cp android/app/build/outputs/apk/release/*.apk out/ || true
+          count=$(ls out/*.apk 2>/dev/null | wc -l)
           ls -la out
+          if [ "$count" -ne 1 ]; then
+            echo "::error::Expected exactly 1 apk, found $count"
+            exit 1
+          fi
 
-      - name: Upload APKs
+      - name: Upload the APK (single file)
         uses: actions/upload-artifact@v4
         with:
-          name: masingar-apks
+          name: masingar-apk
           path: out/*.apk
 
       - name: Upload Gradle wrapper (copy into android/ for offline builds)

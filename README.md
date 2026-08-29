@@ -50,6 +50,9 @@ PORT=3000 SMS_PROVIDER=none node src/index.js
 
 ## 2) بناء ملف APK (أندرويد)
 
+البناء يُنتج **ملف APK واحداً فقط** لكل نوع بناء (لا تقسيم ABI) — الملف يحتوي
+كل المعماريات (armv7 / arm64 / x86_64) ويعمل على **Android 8.0 (API 26) فأعلى**.
+
 ### الطريقة الأولى — Android Studio (الأسهل)
 1. افتح Android Studio ← **File > Open** ← اختر مجلد `android`.
 2. انسخ `android/local.properties.example` إلى `android/local.properties` واضبط:
@@ -57,21 +60,22 @@ PORT=3000 SMS_PROVIDER=none node src/index.js
    SERVER_URL=https://your-server.example.com
    DEFAULT_COUNTRY_CODE=967
    ```
-3. **Build > Build Bundle(s)/APK(s) > Build APK(s)** — الناتج في
-   `android/app/build/outputs/apk/debug/app-debug.apk`.
+3. **Build > Generate Signed Bundle / APK** (للنسخة النهائية) أو
+   **Build > Build APK(s)** — الناتج **ملف واحد** في
+   `android/app/build/outputs/apk/release/app-release.apk`.
 
 ### الطريقة الثانية — سطر الأوامر
 ```bash
 cd android
 gradle wrapper --gradle-version 8.9      # مرة واحدة فقط (أو استخدم Gradle المثبت لديك)
-./gradlew assembleDebug                  # APK للتجربة
-./gradlew assembleRelease                # APK النهائي (universal + لكل معمارية)
+./gradlew assembleRelease                # الناتج: ملف APK واحد نهائي لكل المعماريات
 ```
-الناتج: `android/app/build/outputs/apk/{debug,release}/*.apk`
+الناتج: `android/app/build/outputs/apk/release/app-release.apk` — ملف واحد فقط.
 
 ### الطريقة الثالثة — بناء سحابي تلقائي (GitHub Actions)
 انسخ الملف `docs/github-actions-ci.yml` إلى `.github/workflows/ci.yml` ثم ادفع:
-كل push سيبني ملفات APK ويضعها في تبويب **Artifacts**، ويشغّل اختبارات السيرفر أيضاً.
+كل push سيبني **ملف APK واحداً** (release) يتحقق منه تلقائياً ويضعه في تبويب
+**Artifacts**، ويشغّل اختبارات السيرفر أيضاً.
 
 ### التوقيع للإنتاج
 أنشئ keystore ثم أضف بياناته في `android/local.properties`:
