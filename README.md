@@ -128,10 +128,26 @@ TURN_HOST=turn.example.com
 السيرفر يولّد بيانات دخول مؤقتة (HMAC) لكل مستخدم عبر `/api/ice`، فلا تُكشف أسرار TURN أبداً.
 
 ### إرسال رسائل SMS (كود التحقق)
-- `SMS_PROVIDER=none` → الكود يُعاد في الاستجابة (تطوير/تجربة فقط).
-- `SMS_PROVIDER=console` → يُطبع في سجل السيرفر.
+- `SMS_PROVIDER=textbee` → **رسالة SMS حقيقية عبر [textbee.dev](https://textbee.dev)**: جوالك الأندرويد يعمل كبوابة إرسال، والرسالة تخرج من شريحتك (بدون اشتراك شهري).
 - `SMS_PROVIDER=twilio` → يحتاج `TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM`.
 - `SMS_PROVIDER=http` → يستدعي ويب‌هوك: `POST {to, code, app}`.
+- `SMS_PROVIDER=console` → يُطبع في سجل السيرفر (لا يصل للمستخدم).
+- `SMS_PROVIDER=none` → الكود يُعاد في الاستجابة — **للتطوير فقط**: أي شخص يستطيع فتح أي حساب بمعرفة رقمه.
+
+**إعداد TextBee** (المزوّد الافتراضي في `deploy/.env.example`):
+```bash
+# في /opt/masingar/server/.env  (أو في بيئة docker compose)
+SMS_PROVIDER=textbee
+TEXTBEE_API_KEY=txb_...          # من لوحة تحكم textbee > API Keys
+TEXTBEE_DEVICE_ID=6a92...        # معرّف الجوال المسجّل كبوابة
+#TEXTBEE_BASE_URL=https://api.textbee.dev     # للبوابة المستضافة ذاتياً
+#SMS_TEXT=ماسنجر: كود التحقق هو ${code}      # نص الرسالة
+```
+السيرفر ينادي `POST /api/v1/gateway/devices/{DEVICE_ID}/send-sms` مع ترويسة `x-api-key`،
+ويرسل الرقم بصيغة E.164 (`+967771234567`). إن فشل الإرسال (رصيد/شبكة/جهاز غير متصل)
+يسجّل السيرفر الخطأ ولا يمنع تسجيل الدخول.
+
+> لا تضع المفاتيح داخل الكود أو في Git: `.env` مُتجاهَلة في `.gitignore`، وخدمة systemd تقرأها عبر `EnvironmentFile`.
 
 ### إشعارات المكالمات والتطبيق مغلق (FCM)
 1. أنشئ مشروع Firebase وأضف تطبيق أندرويد.

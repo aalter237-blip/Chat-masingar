@@ -69,6 +69,9 @@ jobs:
       - name: Web <-> Android protocol compatibility
         run: node test/e2ee-cross.mjs
 
+      - name: TextBee SMS provider (offline, fetch is stubbed)
+        run: node test/sms-textbee.mjs
+
       - name: End-to-end (encryption, shared wallpaper, capture notices)
         working-directory: server
         env:

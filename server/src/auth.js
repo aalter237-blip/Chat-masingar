@@ -28,9 +28,20 @@ export function verifyToken(token, expected = 'access') {
 /* ------------------------------- OTP -------------------------------- */
 
 /**
+ * Body of the verification SMS (TextBee / Twilio).
+ * `${code}` and `{{code}}` are replaced by the one time code.
+ */
+export function otpText(code) {
+  return String(config.smsText || '${code}')
+    .replace(/\$\{code\}/g, code)
+    .replace(/\{\{code\}\}/g, code);
+}
+
+/**
  * Send a verification code.
  * provider 'none'   -> code is returned to the caller (development / demo)
  * provider 'console'-> code is printed in the server log
+ * provider 'textbee'-> real SMS through textbee.dev (Android phone gateway)
  * provider 'twilio' -> Twilio Verify / Messages API
  * provider 'http'   -> generic POST {to, code} webhook
  */
@@ -41,7 +52,25 @@ export async function sendOtp(phone) {
 
   let delivered = false;
   try {
-    if (config.smsProvider === 'twilio' && config.twilioSid && config.twilioToken) {
+    if (config.smsProvider === 'textbee' && config.textbeeApiKey) {
+      const base = String(config.textbeeBaseUrl || 'https://api.textbee.dev').replace(/\/+$/, '');
+      const url = config.textbeeDeviceId
+        ? `${base}/api/v1/gateway/devices/${encodeURIComponent(config.textbeeDeviceId)}/send-sms`
+        : `${base}/api/v1/gateway/send-sms`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.textbeeApiKey,
+        },
+        body: JSON.stringify({
+          recipients: ['+' + phone],
+          message: otpText(code),
+        }),
+      });
+      delivered = res.ok;
+      if (!res.ok) log('sms: textbee error', res.status, await res.text().catch(() => ''));
+    } else if (config.smsProvider === 'twilio' && config.twilioSid && config.twilioToken) {
       const basic = Buffer.from(`${config.twilioSid}:${config.twilioToken}`).toString('base64');
       const body = new URLSearchParams({
         To: '+' + phone,

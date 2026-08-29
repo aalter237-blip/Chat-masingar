@@ -6,10 +6,11 @@
  * 1. crypto reference vectors   (python3, RFC 7748 / RFC 5869 + Node vectors)
  * 2. web engine unit tests      (test/e2ee-web.mjs)
  * 3. web <-> android cross test (test/e2ee-cross.mjs)
- * 4. server REST/WebSocket e2e  (server/test/e2e.mjs, own server + temp db)
- * 5. live end-to-end            (test/e2ee-live.mjs, same server)
- * 6. two web clients            (test/web-two-clients.mjs, jsdom, same server)
- * 7. web UI smoke test          (test/web-smoke.mjs, needs jsdom in test/node_modules)
+ * 4. TextBee SMS provider       (test/sms-textbee.mjs, offline, fetch is stubbed)
+ * 5. server REST/WebSocket e2e  (server/test/e2e.mjs, own server + temp db)
+ * 6. live end-to-end            (test/e2ee-live.mjs, same server)
+ * 7. two web clients            (test/web-two-clients.mjs, jsdom, same server)
+ * 8. web UI smoke test          (test/web-smoke.mjs, needs jsdom in test/node_modules)
  *
  * The last three suites drive the server started right here, so no server has
  * to be running on port 3000 beforehand.
@@ -59,6 +60,7 @@ function step(name, ok) {
 step('crypto reference vectors (python3)', run('python3', ['test/verify-crypto.py']));
 step('web crypto engine', run('node', ['test/e2ee-web.mjs']));
 step('web <-> android protocol', run('node', ['test/e2ee-cross.mjs']));
+step('TextBee SMS provider (offline)', run('node', ['test/sms-textbee.mjs']));
 
 const dataDir = mkdtempSync(join(tmpdir(), 'masingar-test-'));
 const server = spawn('node', ['src/index.js'], {

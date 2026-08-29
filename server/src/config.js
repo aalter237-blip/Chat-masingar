@@ -32,13 +32,29 @@ export const config = {
   /** Default country calling code used when a phone number has none. */
   defaultCountryCode: process.env.DEFAULT_COUNTRY_CODE || '967',
 
-  /** OTP behaviour: 'none' (dev, code returned in API) | 'console' | 'twilio' | 'http' */
+  /**
+   * OTP behaviour:
+   *   'none'    -> dev, the verification code is returned by the API
+   *   'console' -> the code is printed in the server log
+   *   'textbee' -> sent as a real SMS through https://textbee.dev (your Android
+   *                phone acts as the gateway, messages leave from your SIM)
+   *   'twilio'  -> Twilio Messages API
+   *   'http'    -> generic POST {to, code, app} webhook
+   */
   smsProvider: process.env.SMS_PROVIDER || (process.env.NODE_ENV === 'production' ? 'console' : 'none'),
   smsHttpUrl: process.env.SMS_HTTP_URL || '',
   smsHttpToken: process.env.SMS_HTTP_TOKEN || '',
   twilioSid: process.env.TWILIO_ACCOUNT_SID || '',
   twilioToken: process.env.TWILIO_AUTH_TOKEN || '',
   twilioFrom: process.env.TWILIO_FROM || '',
+
+  /** TextBee (https://textbee.dev) - Android phone as an SMS gateway. */
+  textbeeApiKey: process.env.TEXTBEE_API_KEY || '',
+  textbeeDeviceId: process.env.TEXTBEE_DEVICE_ID || '',
+  textbeeBaseUrl: (process.env.TEXTBEE_BASE_URL || 'https://api.textbee.dev').replace(/\/+$/, ''),
+
+  /** Body of the verification SMS. `${code}` (or {{code}}) is replaced. */
+  smsText: process.env.SMS_TEXT || 'ماسنجر: كود التحقق هو ${code}',
   otpLength: Number(process.env.OTP_LENGTH || 6),
   otpTtlMs: Number(process.env.OTP_TTL_MS || 5 * 60 * 1000),
 

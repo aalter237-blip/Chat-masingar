@@ -16,9 +16,13 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-https://chatmassage.bonto.run}
       JWT_SECRET: ${JWT_SECRET:?set a long random secret}
       DEFAULT_COUNTRY_CODE: ${DEFAULT_COUNTRY_CODE:-967}
-      SMS_PROVIDER: ${SMS_PROVIDER:-console}
+      SMS_PROVIDER: ${SMS_PROVIDER:-textbee}
       SMS_HTTP_URL: ${SMS_HTTP_URL:-}
       SMS_HTTP_TOKEN: ${SMS_HTTP_TOKEN:-}
+      TEXTBEE_API_KEY: ${TEXTBEE_API_KEY:-}
+      TEXTBEE_DEVICE_ID: ${TEXTBEE_DEVICE_ID:-}
+      TEXTBEE_BASE_URL: ${TEXTBEE_BASE_URL:-https://api.textbee.dev}
+      SMS_TEXT: ${SMS_TEXT:-ماسنجر: كود التحقق هو $${code}}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_FROM: ${TWILIO_FROM:-}
