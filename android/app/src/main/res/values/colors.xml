@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#00A884</color>
+    <color name="brand_dark">#0B141A</color>
+    <color name="brand_dark_2">#111B21</color>
+    <color name="brand_dark_3">#1F2C33</color>
+    <color name="brand_out">#005C4B</color>
+    <color name="danger">#EA4335</color>
+    <color name="warning">#F9A825</color>
+    <color name="info">#53BDEB</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

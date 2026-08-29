@@ -1,0 +1,74 @@
+# Masingar production stack: app server + TURN relay + reverse proxy.
+#
+#   cp .env.example .env   -> fill the values
+#   docker compose up -d
+#
+services:
+  masingar:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    container_name: masingar
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      PUBLIC_URL: ${PUBLIC_URL:-https://chatmassage.bonto.run}
+      JWT_SECRET: ${JWT_SECRET:?set a long random secret}
+      DEFAULT_COUNTRY_CODE: ${DEFAULT_COUNTRY_CODE:-967}
+      SMS_PROVIDER: ${SMS_PROVIDER:-textbee}
+      SMS_HTTP_URL: ${SMS_HTTP_URL:-}
+      SMS_HTTP_TOKEN: ${SMS_HTTP_TOKEN:-}
+      TEXTBEE_API_KEY: ${TEXTBEE_API_KEY:-}
+      TEXTBEE_DEVICE_ID: ${TEXTBEE_DEVICE_ID:-}
+      TEXTBEE_BASE_URL: ${TEXTBEE_BASE_URL:-https://api.textbee.dev}
+      SMS_TEXT: ${SMS_TEXT:-ماسنجر: كود التحقق هو $${code}}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
+      TURN_SECRET: ${TURN_SECRET:?shared secret, same value as in coturn}
+      TURN_HOST: ${TURN_HOST:?turn.example.com}
+      TURN_REALM: ${TURN_REALM:-masingar}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_CLIENT_EMAIL: ${FCM_CLIENT_EMAIL:-}
+      FCM_PRIVATE_KEY: ${FCM_PRIVATE_KEY:-}
+      DEMO_SEED: "false"
+    volumes:
+      - masingar-data:/app/data
+      - masingar-uploads:/app/uploads
+    expose:
+      - "3000"
+    networks: [masingar]
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: masingar-turn
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - -c=/etc/coturn/turnserver.conf
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./coturn/certs:/etc/coturn/certs:ro
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: masingar-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/masingar.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - masingar
+    networks: [masingar]
+
+volumes:
+  masingar-data:
+  masingar-uploads:
+
+networks:
+  masingar:
+    driver: bridge
