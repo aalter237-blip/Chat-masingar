@@ -199,7 +199,8 @@ class WebrtcEngine(
             iceCandidatePoolSize = 2
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
             tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.ENABLED
-            enableDtlsSrtp = true
+            // NOTE: DTLS-SRTP is always enabled in current libwebrtc builds;
+            // the old RTCConfiguration.enableDtlsSrtp flag no longer exists.
         }
         return factory.createPeerConnection(rtcConfig, observer)!!
     }

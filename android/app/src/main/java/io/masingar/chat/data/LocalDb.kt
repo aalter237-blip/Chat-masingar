@@ -71,13 +71,13 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
                     put("title", c.title)
                     put("avatar", c.avatar)
                     put("members", org.json.JSONArray().apply { c.members.forEach { put(it.toJson()) } }.toString())
-                    put("peer", c.peer?.toJson().orEmpty())
+                    put("peer", c.peer?.toJson()?.toString())
                     put("unread", c.unread)
                     put("muted", if (c.muted) 1 else 0)
                     put("settings", c.settings)
                     put("created_at", c.createdAt)
                     put("updated_at", c.updatedAt)
-                    put("last_message", c.lastMessage?.toJson().orEmpty())
+                    put("last_message", c.lastMessage?.toJson()?.toString())
                 }
                 writableDatabase.insertWithOnConflict("conversations", null, v, SQLiteDatabase.CONFLICT_REPLACE)
             }
@@ -191,7 +191,7 @@ class LocalDb(context: Context) : SQLiteOpenHelper(context, "masingar.db", null,
                 val v = ContentValues().apply {
                     put("phone_hash", c.phoneHash)
                     put("name", c.name)
-                    put("user", c.user?.toJson().orEmpty())
+                    put("user", c.user?.toJson()?.toString())
                 }
                 writableDatabase.insertWithOnConflict("contacts", null, v, SQLiteDatabase.CONFLICT_REPLACE)
             }
