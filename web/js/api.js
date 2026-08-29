@@ -81,6 +81,8 @@ export function refresh() {
 }
 
 export const api = {
+  /** Public server information: health, users, sms provider, demo mode. */
+  health: () => request('GET', '/health'),
   requestOtp: (phone) => request('POST', '/auth/otp/request', { phone }),
   verifyOtp: (phone, code, name) => request('POST', '/auth/otp/verify', { phone, code, name, device: navigator.userAgent.slice(0, 80) }),
   me: () => request('GET', '/me'),

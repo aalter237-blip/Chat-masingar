@@ -274,13 +274,27 @@ function initLogin() {
   select.value = [...select.options].some((o) => o.value === saved) ? saved : '967';
   select.addEventListener('change', () => localStorage.setItem('masingar.cc', select.value));
 
+  /*
+   * The demo shortcuts belong to a throwaway box only. A real server sends the
+   * code over SMS and never hands it back, so it reports demo:false and the
+   * shortcuts stay hidden - every account there is a real phone number.
+   */
   const demoList = $('#demo-list');
   demoList.innerHTML = '';
-  for (const phone of DEMO_PHONES) {
-    demoList.append(
-      h('button', { class: 'demo-chip', type: 'button', onclick: () => ($('#phone').value = phone.replace(/^\d{3}/, '')) }, '+' + phone)
-    );
-  }
+  demoList.classList.add('hidden');
+  api.health()
+    .then((info) => {
+      if (!info || info.demo !== true) return;
+      for (const phone of DEMO_PHONES) {
+        demoList.append(
+          h('button', { class: 'demo-chip', type: 'button', onclick: () => ($('#phone').value = phone.replace(/^\d{3}/, '')) }, '+' + phone)
+        );
+      }
+      demoList.classList.remove('hidden');
+    })
+    .catch(() => {
+      /* offline / unknown server: no shortcuts */
+    });
 
   let phone = '';
   $('#login-form').addEventListener('submit', async (e) => {

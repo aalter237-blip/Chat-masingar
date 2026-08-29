@@ -75,8 +75,19 @@ export const config = {
   otpLength: Number(process.env.OTP_LENGTH || 6),
   otpTtlMs: Number(process.env.OTP_TTL_MS || 5 * 60 * 1000),
 
-  /** Demo users are created on first boot when the users table is empty. */
-  demoSeed: process.env.DEMO_SEED !== 'false',
+  /**
+   * Demo users are only created when this is switched on explicitly. A real
+   * deployment has none: every account is a real phone number that verified
+   * itself with a one time code.
+   */
+  demoSeed: process.env.DEMO_SEED === 'true',
+
+  /**
+   * True for a throwaway box: no SMS gateway is configured, so the server
+   * hands the verification code back to whoever asks for it. Clients use it to
+   * show the demo shortcuts; it must never be true on a real deployment.
+   */
+  demoMode: process.env.DEMO_SEED === 'true' || (process.env.SMS_PROVIDER || smsDefault) === 'none',
 
   /** TURN / STUN */
   turnSecret: process.env.TURN_SECRET || '',

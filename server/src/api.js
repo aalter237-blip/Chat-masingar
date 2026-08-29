@@ -44,7 +44,19 @@ function requireMember(convId, userId) {
 /* ------------------------------ health ------------------------------- */
 
 router.get('/health', (_req, res) =>
-  ok(res, { status: 'ok', time: now(), users: store.userCount(), online: hub.onlineUsers().length })
+  ok(res, {
+    status: 'ok',
+    time: now(),
+    users: store.userCount(),
+    online: hub.onlineUsers().length,
+    /** how verification codes leave the box: none | console | textbee | twilio | http */
+    sms: config.smsProvider,
+    /**
+     * `true` only on a throwaway box (no SMS gateway): the server then hands
+     * the code back with the API. Clients show the demo shortcuts for this.
+     */
+    demo: config.demoMode,
+  })
 );
 
 /* ------------------------------- auth -------------------------------- */

@@ -27,6 +27,7 @@ jobs:
         env:
           PORT: 3000
           SMS_PROVIDER: none
+          DEMO_SEED: "true"
         run: |
           node src/index.js > /tmp/server.log 2>&1 &
           echo $! > /tmp/server.pid
@@ -72,11 +73,15 @@ jobs:
       - name: TextBee SMS provider (offline, fetch is stubbed)
         run: node test/sms-textbee.mjs
 
+      - name: Real signup and messaging with personal numbers
+        run: node test/real-signup.mjs
+
       - name: End-to-end (encryption, shared wallpaper, capture notices)
         working-directory: server
         env:
           PORT: 3000
           SMS_PROVIDER: none
+          DEMO_SEED: "true"
         run: |
           node src/index.js > /tmp/server2.log 2>&1 &
           echo $! > /tmp/server2.pid
@@ -114,6 +119,7 @@ jobs:
         env:
           PORT: 3000
           SMS_PROVIDER: none
+          DEMO_SEED: "true"
         run: |
           node src/index.js > /tmp/server3.log 2>&1 &
           echo $! > /tmp/server3.pid

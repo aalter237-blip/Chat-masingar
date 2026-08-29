@@ -153,6 +153,33 @@ TEXTBEE_DEVICE_ID=6a92...        # معرّف الجوال المسجّل كبو
 > (أو استبدلها بمتغيّرات البيئة قبل المشاركة، وولّد مفتاحاً جديداً من لوحة TextBee).
 > ملف `.env` مُتجاهَل في `.gitignore` وخدمة systemd تقرأه عبر `EnvironmentFile`.
 
+### تفعيل حقيقي للأرقام الشخصية (بدون حسابات تجريبية)
+
+الوضع الافتراضي الآن **للاستخدام الحقيقي**:
+- `DEMO_SEED=false` افتراضياً → **لا تُنشأ أي حسابات تجريبية** عند أول تشغيل.
+- صفحة الدخول **لا تُظهر الأرقام التجريبية** إلا إذا كان السيرفر في وضع تجريبي
+  (`SMS_PROVIDER=none`) — تُعلمها نقطة `/api/health` بحقل `demo`.
+- أي رقم شخصي جديد يسجّل نفسه تلقائياً: طلب كود → `POST /api/auth/otp/request` →
+  استلام رسالة SMS → `POST /api/auth/otp/verify` بالكود والاسم → يُنشأ الحساب.
+- الكود **لا يُعاد في الاستجابة** أبداً إلا في وضع التطوير (`SMS_PROVIDER=none`).
+
+لتنظيف سيرفرك الحالي من الحسابات التجريبية (إن لم يكن لديك مستخدمون حقيقيون بعد):
+```bash
+sudo systemctl stop masingar
+sudo rm -f /opt/masingar/server/data/masingar.db*
+sudo systemctl start masingar
+```
+أو احذفها فقط مع الحفاظ على الباقي:
+```bash
+sqlite3 /opt/masingar/server/data/masingar.db \
+  "DELETE FROM users WHERE phone IN ('967771000001','967771000002','967771000003','12025550123');"
+```
+ثم تحقّق:
+```bash
+curl -s https://chatmassage.bonto.run/api/health
+# يجب أن يظهر: "demo":false   و users بعدد مستخدميك الحقيقيين فقط
+```
+
 ### إشعارات المكالمات والتطبيق مغلق (FCM)
 1. أنشئ مشروع Firebase وأضف تطبيق أندرويد.
 2. انسخ القيم إلى `android/local.properties`:
