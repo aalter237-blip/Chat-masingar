@@ -46,6 +46,27 @@ gh secret set KEY_ALIAS -b"masingar"     -R aalter237-blip/Chat-masingar
 > احتفظ بملف `masingar-release.keystore` وكلمته في مكان آمن — فقدانه يعني أن
 > كل تحديث مستقبلي يتطلب من المستخدمين حذف التطبيق وإعادة تثبيته.
 
+ثم أضِف هذه الخطوة إلى `.github/workflows/main.yml` **قبل** خطوة `Build Release APK`
+(لا يستطيع البوت تعديل ملفات workflows بصلاحياته):
+
+```yaml
+      - name: Prepare release signing (when KEYSTORE_* secrets exist)
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            printf '%s\n' \
+              "KEYSTORE_FILE=release.keystore" \
+              "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" \
+              "KEY_ALIAS=$KEY_ALIAS" \
+              "KEY_PASSWORD=$KEY_PASSWORD" > local.properties
+          fi
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+```
+
 ## 3) بناء الـ APK وتوزيعه
 أي دمج في `main` يبني APK موقّعًا في Actions ← Artifacts ← `Masingar.apk`.
 أرسل الملف للمستخدمين الخمسة (واتساب/تيليجرام) — يكفي تفعيل "تثبيت من مصادر غير معروفة".
