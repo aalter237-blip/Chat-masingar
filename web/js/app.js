@@ -113,6 +113,7 @@ const S = {
   typing: null, // {name, until}
   sock: null,
   connEl: null,
+  chatBackground: null,
 };
 
 /* ---------------------------- شاشة الدخول ---------------------------- */
@@ -245,8 +246,9 @@ async function boot(root) {
     messages: state.messages,
     online: new Set(state.online),
     circle: state.circle || S.circle,
-    tab: 'feed',
+    tab: 'chatlist',
     unread: 0,
+    chatBackground: state.me?.chatBackground?.url || null,
   });
 
   drawApp(root);
@@ -263,24 +265,50 @@ async function boot(root) {
 }
 
 function drawApp(root) {
-  const header = h('header', { class: 'topbar' },
+  S.headerEl = h('header', { class: 'topbar', id: 'app-header' });
+  S.connEl = h('div', { class: 'offline hidden', text: 'غير متصل — بانتظار الشبكة...' });
+  S.mainEl = h('main', { id: 'main' });
+  S.navEl = h('nav', { class: 'bottomnav', id: 'app-nav' });
+  root.replaceChildren(S.headerEl, S.connEl, S.mainEl, S.navEl);
+  renderDefaultHeader();
+  renderNav();
+  switchTab('chatlist');
+}
+
+function renderDefaultHeader() {
+  S.headerEl.replaceChildren(
     h('div', { class: 'brand' },
       h('span', { class: 'logo small', text: 'م' }),
       h('div', {},
         h('div', { class: 'app-title', text: S.circle.name }),
-        h('div', { class: 'app-sub', text: `${S.members.length}/${S.circle.total} أعضاء` }))),
-    h('button', { class: 'icon-btn', title: 'تسجيل الخروج', onclick: logout }, '⏻'));
+        h('div', { class: 'app-sub', id: 'app-sub', text: `${S.online.size} متصل` }))),
+    h('div', { style: 'display:flex;gap:4px;align-items:center' },
+      h('button', { class: 'icon-btn', title: 'البحث', onclick: () => toast('بحث') }, '🔍'),
+      h('button', { class: 'icon-btn', title: 'خيارات', onclick: () => switchTab('profile') }, '⋮')));
+}
 
-  S.connEl = h('div', { class: 'offline hidden', text: 'غير متصل — بانتظار الشبكة...' });
+function renderChatHeader() {
+  const onlineMembers = S.members.filter((m) => S.online.has(m.id));
+  const onlineText = onlineMembers.length > 0
+    ? `${onlineMembers.map((m) => m.name).slice(0, 3).join(', ')}${onlineMembers.length > 3 ? ` و ${onlineMembers.length - 3} آخرون` : ''}`
+    : `${S.members.length} عضو`;
 
-  const main = h('main', { id: 'main' });
-  const nav = h('nav', { class: 'bottomnav' },
-    navItem('feed', '🏠', 'المنشورات'),
-    navItem('chat', '💬', 'الدردشة'),
-    navItem('members', '👥', 'الأعضاء'));
+  S.headerEl.replaceChildren(
+    h('button', { class: 'chat-head-back', onclick: () => switchTab('chatlist'), text: '→' }),
+    h('div', { class: 'wa-conv-avatar', style: 'margin-left:4px' }, avatar(S.circle.name, 40)),
+    h('div', { class: 'chat-head-info', style: 'flex:1;min-width:0' },
+      h('div', { class: 'chat-head-name', text: S.circle.name }),
+      h('div', { class: 'chat-head-sub', id: 'chat-head-count', text: onlineText })),
+    h('div', { class: 'chat-head-actions' },
+      h('button', { class: 'icon-btn', title: 'تغيير الخلفية', onclick: () => $('#bg-file-input')?.click() }, '🎨')));
+}
 
-  root.replaceChildren(header, S.connEl, main, nav);
-  switchTab('feed');
+function renderNav() {
+  S.navEl.replaceChildren(
+    navItem('chatlist', '💬', 'المحادثات'),
+    navItem('feed', '📰', 'المنشورات'),
+    navItem('members', '👥', 'الأعضاء'),
+    navItem('profile', '👤', 'حسابي'));
 }
 
 function navItem(id, icon, label) {
@@ -294,16 +322,18 @@ function switchTab(tab) {
   S.tab = tab;
   if (tab === 'chat') { S.unread = 0; updateBadge(); }
   $$('.bottomnav .navitem').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-  const main = $('#main');
-  if (tab === 'feed') renderFeed(main);
-  if (tab === 'chat') renderChat(main);
-  if (tab === 'members') renderMembers(main);
+  const main = S.mainEl;
+  if (tab === 'feed') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderFeed(main); }
+  else if (tab === 'chat') { renderChatHeader(); main.style.display = ''; S.navEl.style.display = 'none'; renderChat(main); }
+  else if (tab === 'chatlist') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderChatList(main); }
+  else if (tab === 'members') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderMembers(main); }
+  else if (tab === 'profile') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderProfile(main); }
 }
 
 function updateBadge() {
-  const badge = $('.bottomnav .badge');
+  const badge = $$('.bottomnav .badge[data-badge="chatlist"]')[0];
   if (!badge) return;
-  badge.classList.toggle('hidden', S.unread === 0 || S.tab === 'chat');
+  badge.classList.toggle('hidden', S.unread === 0);
   badge.textContent = S.unread > 9 ? '٩+' : String(S.unread);
 }
 
@@ -366,6 +396,12 @@ function onWsEvent(ev) {
       }
       break;
 
+    case 'read': {
+      const rm = S.messages.find((m) => m.id === ev.id);
+      if (rm) { rm.readBy = ev.readBy; refreshChatList(); }
+      break;
+    }
+
     case 'members':
       refreshMembers();
       break;
@@ -391,6 +427,8 @@ function mergeMessage(msg) {
     updateBadge();
   }
   refreshChatList();
+  // تحديث تلقائي لقائمة المحادثات عند وصول رسالة جديدة
+  if (S.tab === 'chatlist') renderChatList(S.mainEl);
 }
 
 function refreshPostList() {
@@ -400,9 +438,13 @@ function refreshPostList() {
 }
 
 function refreshChatList() {
-  if (S.tab !== 'chat') return;
-  const list = $('#chat-list');
-  if (list) drawChat(list);
+  if (S.tab === 'chat') {
+    const list = $('#chat-list');
+    if (list) drawChat(list);
+  }
+  if (S.tab === 'chatlist') {
+    renderChatList(S.mainEl);
+  }
 }
 
 function updatePresenceUI() {
@@ -411,7 +453,9 @@ function updatePresenceUI() {
     if (rows) drawMemberRows(rows);
   }
   const head = $('#chat-head-count');
-  if (head) head.textContent = `${S.online.size} متصل الآن`;
+  if (head) head.textContent = `${S.online.size} متصل`;
+  const sub = $('#app-sub');
+  if (sub) sub.textContent = `${S.online.size} متصل`;
 }
 
 /** مزامنة كاملة بعد عودة الاتصال — تلتقط ما فات أثناء الانقطاع. */
@@ -423,6 +467,7 @@ async function syncState() {
     S.posts = st.posts;
     S.messages = st.messages;
     S.online = new Set(st.online);
+    S.chatBackground = st.me?.chatBackground?.url || null;
     refreshPostList();
     refreshChatList();
     updatePresenceUI();
@@ -447,6 +492,80 @@ async function refreshMembers() {
 }
 
 /* ------------------------------ المنشورات ----------------------------- */
+
+function contactsStrip() {
+  const strip = h('div', { class: 'contacts-strip' });
+  const onlineMembers = S.members.filter((m) => S.online.has(m.id));
+  const offlineMembers = S.members.filter((m) => !S.online.has(m.id));
+  const sorted = [...onlineMembers, ...offlineMembers];
+  for (const m of sorted) {
+    const isOnline = S.online.has(m.id);
+    const item = h('div', { class: 'contact-item', onclick: () => switchTab('chat') },
+      h('div', { class: 'contact-avatar-wrap' },
+        avatar(m.name, 50),
+        h('span', { class: 'contact-status ' + (isOnline ? 'on' : 'off')})),
+      h('div', { class: 'contact-name', text: m.id === S.me.id ? 'أنت' : m.name }));
+    strip.append(item);
+  }
+  return strip;
+}
+
+/* ─── قائمة المحادثات ─── */
+
+function renderChatList(main) {
+  const lastMsg = S.messages.length ? S.messages[S.messages.length - 1] : null;
+  const lastTime = lastMsg ? formatChatTime(lastMsg.createdAt) : '';
+  const lastText = lastMsg
+    ? (lastMsg.author.id === S.me.id ? 'أنت: ' : '') + (lastMsg.text || '📷 صورة')
+    : 'ابدأوا المحادثة 👋';
+  const onlineCount = S.online.size;
+
+  const conv = h('div', { class: 'wa-conversation', onclick: () => switchTab('chat') },
+    h('div', { class: 'wa-conv-avatar' },
+      avatar(S.circle.name, 50),
+      h('span', { class: 'presence ' + (onlineCount > 0 ? 'on' : 'off') })),
+    h('div', { class: 'wa-conv-info' },
+      h('div', { class: 'wa-conv-top' },
+        h('span', { class: 'wa-conv-name', text: S.circle.name }),
+        h('span', { class: 'wa-conv-time' + (S.unread ? ' unread' : ''), text: lastTime })),
+      h('div', { class: 'wa-conv-bottom' },
+        h('span', { class: 'wa-conv-msg', text: lastText }),
+        S.unread ? h('span', { class: 'wa-conv-unread', text: S.unread > 9 ? '٩+' : String(S.unread) }) : null)),
+    h('div', { style: 'display:flex;flex-direction:column;align-items:center;gap:2px;margin-right:4px' },
+      h('span', { class: 'hint', text: `${onlineCount} متصل` })));
+
+  main.replaceChildren(
+    contactsStrip(),
+    h('div', { class: 'wa-chat-list' }, conv),
+    S.posts.length ? h('div', { class: 'wa-conversation', onclick: () => switchTab('feed') },
+      h('div', { class: 'wa-conv-avatar' }, avatar('📰', 50)),
+      h('div', { class: 'wa-conv-info' },
+        h('div', { class: 'wa-conv-top' },
+          h('span', { class: 'wa-conv-name', text: 'المنشورات' })),
+        h('div', { class: 'wa-conv-bottom' },
+          h('span', { class: 'wa-conv-msg', text: `${S.posts.length} منشور في الدائرة` })))) : null,
+    h('div', { class: 'wa-conversation', onclick: () => switchTab('members') },
+      h('div', { class: 'wa-conv-avatar' }, avatar('👥', 50)),
+      h('div', { class: 'wa-conv-info' },
+        h('div', { class: 'wa-conv-top' },
+          h('span', { class: 'wa-conv-name', text: 'أعضاء الدائرة' })),
+        h('div', { class: 'wa-conv-bottom' },
+          h('span', { class: 'wa-conv-msg', text: `${S.members.length} / ${S.circle.total} — ${onlineCount} متصل` })))))
+  );
+}
+
+function formatChatTime(ts) {
+  const now = new Date();
+  const d = new Date(ts);
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) return d.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'أمس';
+  return d.toLocaleDateString('ar', { month: 'short', day: 'numeric' });
+}
+
+/* ─── المنشورات ─── */
 
 function renderFeed(main) {
   let pendingPhoto = null;
@@ -497,7 +616,7 @@ function renderFeed(main) {
     fileInput);
 
   const list = h('div', { id: 'post-list' });
-  main.replaceChildren(h('div', { class: 'feed' }, composer, list));
+  main.replaceChildren(contactsStrip(), h('div', { class: 'feed' }, composer, list));
   drawPosts(list);
 }
 
@@ -574,6 +693,7 @@ function postCard(p) {
 function renderChat(main) {
   const list = h('div', { class: 'chat-list', id: 'chat-list' });
   let pendingPhoto = null;
+  let pendingBg = null;
 
   const preview = h('div', { class: 'photo-preview small hidden' });
   const fileInput = h('input', { type: 'file', accept: 'image/*', class: 'hidden' });
@@ -617,17 +737,36 @@ function renderChat(main) {
   const bar = h('div', { class: 'chat-bar' },
     h('button', { class: 'icon-btn attach', title: 'صورة', onclick: () => fileInput.click() }, '📷'),
     input,
-    h('button', { class: 'btn primary send', onclick: send, text: 'إرسال' }),
+    h('button', { class: 'send', title: 'إرسال', onclick: send }, '➤'),
     fileInput);
 
-  main.replaceChildren(h('div', { class: 'chat-wrap' },
-    h('div', { class: 'chat-head' },
-      h('span', { text: 'دردشة الدائرة' }),
-      h('span', { class: 'chat-head-sub', id: 'chat-head-count', text: `${S.online.size} متصل الآن` })),
-    list, typingEl, preview, bar));
+  /* ─── خلفية الدردشة ─── */
+  const bgFileInput = h('input', { type: 'file', accept: 'image/*', class: 'hidden' });
+  bgFileInput.addEventListener('change', async () => {
+    const f = bgFileInput.files[0];
+    bgFileInput.value = '';
+    if (!f) return;
+    try {
+      pendingBg = await compressImage(f);
+      try {
+        const r = await api('/chat-background', { method: 'PUT', body: { photo: pendingBg } });
+        S.chatBackground = r.me?.chatBackground?.url || null;
+        applyChatBg();
+        toast('تم تغيير خلفية الدردشة ✓');
+      } catch (err) { toast(err.message, 'error'); }
+      pendingBg = null;
+    } catch { toast('تعذر تحميل الصورة', 'error'); }
+  });
+
+  bgFileInput.id = 'bg-file-input';
+  main.replaceChildren(h('div', { class: 'chat-wrap', id: 'chat-wrap' },
+    list, typingEl, preview, bar, bgFileInput));
+
+  applyChatBg();
 
   drawChat(list);
   renderTyping();
+  markMessagesRead();
 }
 
 function drawChat(container) {
@@ -641,6 +780,16 @@ function drawChat(container) {
   if (nearBottom) container.scrollTop = container.scrollHeight;
 }
 
+function readTick(m) {
+  if (m.author.id !== S.me.id) return null;
+  const readBy = m.readBy || [m.author.id];
+  const othersCount = S.members.filter((x) => x.id !== S.me.id).length;
+  const readOthers = readBy.filter((id) => id !== S.me.id).length;
+  if (readOthers === 0) return h('span', { class: 'read-tick tick-sent', title: 'مرسل', text: '✓' });
+  if (readOthers < othersCount) return h('span', { class: 'read-tick tick-delivered', title: 'تم التوصيل', text: '✓✓' });
+  return h('span', { class: 'read-tick tick-read', title: 'مقروءة من الجميع', text: '✓✓' });
+}
+
 function chatBubble(m) {
   const mine = m.author.id === S.me.id;
   return h('div', { class: 'bubble-row ' + (mine ? 'mine' : 'theirs') },
@@ -649,7 +798,9 @@ function chatBubble(m) {
       mine ? null : h('div', { class: 'bubble-author', text: m.author.name }),
       m.text ? h('div', { class: 'bubble-text', text: m.text }) : null,
       m.photo ? h('img', { class: 'bubble-photo', src: m.photo, alt: 'صورة', loading: 'lazy' }) : null,
-      h('div', { class: 'bubble-time', text: timeAgo(m.createdAt) }),
+      h('div', { class: 'bubble-footer' },
+        h('span', { class: 'bubble-time', text: timeAgo(m.createdAt) }),
+        readTick(m)),
       mine ? h('button', { class: 'bubble-del', title: 'حذف',
         onclick: async () => {
           if (!confirm('حذف الرسالة؟')) return;
@@ -663,10 +814,32 @@ function renderTyping() {
   const t = S.typing;
   if (t && Date.now() < t.until) {
     el.classList.remove('hidden');
-    el.textContent = `${t.name} يكتب...`;
+    el.replaceChildren(
+      h('span', { class: 'typing-dots' }, h('span'), h('span'), h('span')),
+      ` ${t.name} يكتب...`);
     setTimeout(renderTyping, t.until - Date.now() + 100);
   } else {
     el.classList.add('hidden');
+  }
+}
+
+/** علّم الرسائل كمقروءة عند فتح الدردشة */
+async function markMessagesRead() {
+  const unreadMsgs = S.messages.filter((m) => m.author.id !== S.me.id && !(m.readBy || []).includes(S.me.id));
+  for (const m of unreadMsgs) {
+    api(`/messages/${m.id}/read`, { method: 'POST', body: {} }).catch(() => {});
+  }
+}
+
+function applyChatBg() {
+  const wrap = $('#chat-wrap');
+  if (!wrap) return;
+  if (S.chatBackground) {
+    wrap.style.backgroundImage = `url(${S.chatBackground})`;
+    wrap.classList.add('has-bg');
+  } else {
+    wrap.style.backgroundImage = '';
+    wrap.classList.remove('has-bg');
   }
 }
 
@@ -674,8 +847,56 @@ function renderTyping() {
 
 function renderMembers(main) {
   const seatsLeftCount = Math.max(0, S.circle.total - S.members.length);
+  const rows = h('div', { id: 'member-rows' });
 
-  const nameInput = h('input', { class: 'input', maxlength: '30', value: S.me.name });
+  main.replaceChildren(
+    contactsStrip(),
+    h('div', { class: 'members-wrap' },
+      h('div', { class: 'card circle-card' },
+        h('div', { class: 'circle-title', text: `دائرة: ${S.circle.name}` }),
+        h('div', { class: 'circle-count' },
+          h('span', { class: 'count-num', text: String(S.members.length) }),
+          h('span', { class: 'count-total', text: ` / ${S.circle.total}` })),
+        h('p', { class: 'hint', text: seatsLeftCount > 0
+          ? `مقاعد متاحة للانضمام: ${seatsLeftCount} — يظهر اسم ورقم كل من يسجل هنا تلقائياً.`
+          : 'الدائرة مكتملة — لا يمكن لأحد جديد التسجيل.' })),
+
+      h('div', { class: 'card' },
+        h('div', { class: 'section-title', text: 'أعضاء الدائرة' }),
+        rows),
+    )
+  );
+
+  drawMemberRows(rows);
+}
+
+function drawMemberRows(container) {
+  container.replaceChildren(S.members.map((m) => memberRow(m)));
+}
+
+function memberRow(m) {
+  const isMe = m.id === S.me.id;
+  const online = S.online.has(m.id);
+  return h('div', { class: 'member-row', onclick: () => switchTab('chat') },
+    h('span', { class: 'avatar-wrap' },
+      avatar(m.name, 44),
+      h('span', { class: 'presence ' + (online ? 'on' : 'off'), title: online ? 'متصل' : 'غير متصل' })),
+    h('div', { class: 'member-info' },
+      h('div', { class: 'member-name' },
+        h('b', { text: isMe ? 'أنت' : m.name }),
+        isMe ? h('span', { class: 'you-tag', text: 'أنت' }) : null),
+      h('div', { class: 'member-phone', dir: 'ltr', text: fmtPhone(m.phone) }),
+      h('div', { class: 'member-sub', style: online ? 'color:var(--green)' : '',
+        text: online ? '🟢 متصل الآن' : `آخر ظهور ${timeAgo(m.lastSeen)}` })),
+    h('div', { class: 'member-since', text: new Date(m.createdAt).toLocaleDateString('ar') }));
+}
+
+/* ------------------------------- البروفايل ------------------------------ */
+
+function renderProfile(main) {
+  const online = S.online.has(S.me.id);
+
+  const nameInput = h('input', { class: 'input', maxlength: '30', value: S.me.name, placeholder: 'اسمك' });
   const saveBtn = h('button', {
     class: 'btn primary small',
     text: 'حفظ',
@@ -690,7 +911,7 @@ function renderMembers(main) {
     },
   });
 
-  const installBtn = h('button', { class: 'btn ghost block', id: 'install-btn', text: '📲 تثبيت التطبيق على جوالك' });
+  const installBtn = h('button', { class: 'btn ghost block', text: '📲 تثبيت التطبيق على جوالك' });
   installBtn.addEventListener('click', async () => {
     if (window.__installPrompt) {
       window.__installPrompt.prompt();
@@ -701,51 +922,47 @@ function renderMembers(main) {
     }
   });
 
-  const rows = h('div', { id: 'member-rows' });
+  main.replaceChildren(
+    h('div', { class: 'profile-card' },
+      h('div', { class: 'profile-avatar' },
+        avatar(S.me.name, 72),
+        h('span', { class: 'presence ' + (online ? 'on' : 'off')})),
+      h('div', { class: 'profile-name', text: S.me.name }),
+      h('div', { class: 'profile-phone', dir: 'ltr', text: fmtPhone(S.me.phone) }),
+      h('div', { class: 'profile-status', text: online ? '🟢 متصل الآن' : `آخر ظهور ${timeAgo(S.me.lastSeen)}` })),
 
-  main.replaceChildren(h('div', { class: 'members-wrap' },
-    h('div', { class: 'card circle-card' },
-      h('div', { class: 'circle-title', text: `دائرة: ${S.circle.name}` }),
-      h('div', { class: 'circle-count' },
-        h('span', { class: 'count-num', text: String(S.members.length) }),
-        h('span', { class: 'count-total', text: ` / ${S.circle.total}` })),
-      h('p', { class: 'hint', text: seatsLeftCount > 0
-        ? `مقاعد متاحة للانضمام: ${seatsLeftCount} — يظهر اسم ورقم كل من يسجل هنا تلقائياً.`
-        : 'الدائرة مكتملة — لا يمكن لأحد جديد التسجيل.' })),
+    h('div', { class: 'card profile-info-card' },
+      h('div', { class: 'info-row' },
+        h('div', { class: 'info-icon', text: '👤' }),
+        h('div', { class: 'info-text' },
+          h('div', { class: 'info-label', text: 'الاسم' }),
+          h('div', { class: 'info-value', text: S.me.name }))),
+      h('div', { class: 'info-row' },
+        h('div', { class: 'info-icon', text: '📱' }),
+        h('div', { class: 'info-text' },
+          h('div', { class: 'info-label', text: 'رقم الهاتف' }),
+          h('div', { class: 'info-value', dir: 'ltr', text: fmtPhone(S.me.phone) }))),
+      h('div', { class: 'info-row' },
+        h('div', { class: 'info-icon', text: '👥' }),
+        h('div', { class: 'info-text' },
+          h('div', { class: 'info-label', text: 'الأعضاء المتصلون' }),
+          h('div', { class: 'info-value', text: `${S.online.size} من ${S.members.length}` }))),
+      h('div', { class: 'info-row' },
+        h('div', { class: 'info-icon', text: '📅' }),
+        h('div', { class: 'info-text' },
+          h('div', { class: 'info-label', text: 'عضو منذ' }),
+          h('div', { class: 'info-value', text: new Date(S.me.createdAt).toLocaleDateString('ar')}))),
+    ),
 
     h('div', { class: 'card' },
-      h('div', { class: 'section-title', text: 'الأعضاء المسجلون (برقم الهاتف)' }),
-      rows),
-
-    h('div', { class: 'card' },
-      h('div', { class: 'section-title', text: 'اسمك' }),
+      h('div', { class: 'section-title', text: 'تعديل الاسم' }),
       h('div', { class: 'rename-row' }, nameInput, saveBtn)),
 
     h('div', { class: 'card about' },
       h('div', { class: 'section-title', text: 'عن التطبيق' }),
-      h('p', { class: 'hint', text: 'ماسنجر لايت: تطبيق خفيف جداً لدائرة صغيرة — منشورات ودردشة فقط، بلا بحث عن أشخاص وبلا مساحة تخزين كبيرة (الأرشيف يُقلَّم تلقائياً).' }),
+      h('p', { class: 'hint', text: 'ماسنجر لايت: تطبيق خفيف جداً لدائرة صغيرة — منشورات ودردشة فقط، بلا بحث عن أشخاص وبلا مساحة تخزين كبيرة.' }),
       installBtn),
-  ));
-
-  drawMemberRows(rows);
-}
-
-function drawMemberRows(container) {
-  container.replaceChildren(S.members.map((m) => memberRow(m)));
-}
-
-function memberRow(m) {
-  const isMe = m.id === S.me.id;
-  const online = S.online.has(m.id);
-  return h('div', { class: 'member-row' },
-    h('span', { class: 'avatar-wrap' },
-      avatar(m.name, 44),
-      h('span', { class: 'presence ' + (online ? 'on' : 'off'), title: online ? 'متصل' : 'غير متصل' })),
-    h('div', { class: 'member-info' },
-      h('div', { class: 'member-name' }, h('b', { text: m.name }), isMe ? h('span', { class: 'you-tag', text: 'أنت' }) : null),
-      h('div', { class: 'member-phone', dir: 'ltr', text: fmtPhone(m.phone) }),
-      h('div', { class: 'member-sub', text: online ? '🟢 متصل الآن' : `آخر ظهور ${timeAgo(m.lastSeen)}` })),
-    h('div', { class: 'member-since', text: `عضو منذ ${new Date(m.createdAt).toLocaleDateString('ar')}` }));
+  );
 }
 
 /* ------------------------------- الإقلاع ------------------------------ */

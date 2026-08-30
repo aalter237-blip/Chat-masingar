@@ -51,6 +51,7 @@ const enrichPost = (p) => ({
 
 const enrichMessage = (m) => ({
   id: m.id, text: m.text, photo: m.photo?.url || null, createdAt: m.createdAt, author: enrichAuthor(m.userId),
+  readBy: m.readBy || [m.userId],
 });
 
 /* ------------------------ معلومات الدائرة (عام) ---------------------- */
@@ -171,6 +172,21 @@ api.put('/me', (req, res) => {
   res.json({ ok: true, me: store.publicUser(req.user) });
 });
 
+api.put('/chat-background', (req, res) => {
+  const photo = req.body?.photo;
+  if (!photo) {
+    // إزالة الخلفية
+    store.setChatBackground(req.user, null);
+    broadcast({ type: 'members' });
+    return res.json({ ok: true, me: store.publicUser(req.user) });
+  }
+  const r = parsePhoto(photo);
+  if (!r.ok) return fail(res, r.status, r.code, r.message);
+  store.setChatBackground(req.user, r.photo);
+  broadcast({ type: 'members' });
+  res.json({ ok: true, me: store.publicUser(req.user) });
+});
+
 /* ------------------------------ المنشورات ---------------------------- */
 
 api.post('/posts', (req, res) => {
@@ -230,6 +246,14 @@ api.delete('/messages/:id', (req, res) => {
   store.removeMessage(msg);
   broadcast({ type: 'message_deleted', id: msg.id });
   res.json({ ok: true });
+});
+
+api.post('/messages/:id/read', (req, res) => {
+  const msg = store.messageById(req.params.id);
+  if (!msg) return fail(res, 404, 'not_found', 'الرسالة غير موجودة');
+  const readBy = store.markRead(msg, req.user.id);
+  broadcast({ type: 'read', id: msg.id, readBy });
+  res.json({ ok: true, readBy });
 });
 
 api.post('/typing', (req, res) => {

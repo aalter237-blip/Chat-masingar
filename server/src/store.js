@@ -211,6 +211,11 @@ export function renameUser(user, name) {
   save();
 }
 
+export function setChatBackground(user, bg) {
+  user.chatBackground = bg; // { file, url } or null
+  save();
+}
+
 /** ما يُرسل للعملاء (بدون أي أسرار). */
 export const publicUser = (u) => ({
   id: u.id,
@@ -218,6 +223,7 @@ export const publicUser = (u) => ({
   name: u.name,
   createdAt: u.createdAt,
   lastSeen: u.lastSeen,
+  chatBackground: u.chatBackground || null,
 });
 
 /* ------------------------- المنشورات والتعليقات ----------------------- */
@@ -275,12 +281,23 @@ export function addMessage(user, { text, photo }) {
     userId: user.id,
     text: text || '',
     photo: photo || null,
+    readBy: [user.id], // صاحب الرسالة يقرأها تلقائياً
     createdAt: Date.now(),
   };
   db.messages.push(msg);
   prune();
   save();
   return msg;
+}
+
+/** علّم الرسالة كمقروءة من المستخدم */
+export function markRead(msg, userId) {
+  if (!msg.readBy) msg.readBy = [];
+  if (!msg.readBy.includes(userId)) {
+    msg.readBy.push(userId);
+    save();
+  }
+  return msg.readBy;
 }
 
 export function messageById(id) {
