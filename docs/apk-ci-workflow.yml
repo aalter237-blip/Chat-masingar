@@ -1,0 +1,66 @@
+# نسخة محدثة من GitHub Actions لبناء APK ماسنجر لايت.
+#
+# ملاحظة: أداة الدفع الآلي هنا لا تملك صلاحية تعديل ملفات
+# .github/workflows مباشرة، لذلك أبقينا سير العمل الأصلي كما هو
+# (وهو يعمل مع المشروع الجديد أيضاً لأنه يشغّل نفس أمر البناء).
+#
+# إن أردت هذه النسخة الأنظف: انسخ محتوى الملف يدوياً إلى
+#   .github/workflows/main.yml
+# من واجهة GitHub (Action > تعديل) أو بأداة تملك صلاحية workflows.
+
+name: Android CI - Build APK (Lite)
+
+on:
+  push:
+    branches: [ main, master ]
+    workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Lite APK (WebView, ~1MB)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Gradle 8.9
+        run: |
+          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          sudo ln -sfn /opt/gradle-8.9/bin/gradle /usr/local/bin/gradle
+          gradle --version
+
+      - name: Build Release APK (no dependencies, tiny)
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify exactly one APK was produced
+        run: |
+          shopt -s nullglob
+          apks=( app/build/outputs/apk/release/*.apk )
+          echo "APKs found: ${#apks[@]}"
+          for a in "${apks[@]}"; do echo " - $a ($(du -h "$a" | cut -f1))"; done
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly 1 apk, found ${#apks[@]}"
+            exit 1
+          fi
+
+      - name: Upload the APK (single file)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MasingarLite.apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

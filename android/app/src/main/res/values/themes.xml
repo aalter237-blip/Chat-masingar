@@ -1,16 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- ماسنجر لايت: WebView واحد على خلفية فاتحة — لا مكتبات UI إضافية -->
     <style name="Theme.Masingar" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="23">false</item>
-        <item name="android:windowBackground">@color/brand_dark</item>
+        <item name="android:statusBarColor">@color/brand</item>
+        <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:windowBackground">@color/bg</item>
         <item name="android:windowNoTitle">true</item>
-    </style>
-
-    <style name="Theme.Masingar.Call" parent="Theme.Masingar">
-        <item name="android:windowIsTranslucent">false</item>
-        <item name="android:windowBackground">@color/brand_dark</item>
-        <item name="android:windowShowWallpaper">false</item>
     </style>
 </resources>

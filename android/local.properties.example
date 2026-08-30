@@ -1,23 +1,14 @@
-# Copy to android/local.properties and fill in your values.
-# local.properties is NOT committed (see .gitignore).
+# انسخ هذا الملف إلى android/local.properties وعدّل القيم.
+# local.properties لا يُرفع إلى Git (انظر .gitignore).
 
-# Address of your Masingar server (must be HTTPS in production)
-SERVER_URL=https://chatmassage.bonto.run
+# عنوان سيرفر ماسنجر لايت الذي يفتح عليه التطبيق.
+# للتجربة على جهاز افتراضي: http://10.0.2.2:3000  (سيرفر يعمل على جهازك)
+# للإنتاج: https://your-server.com
+SERVER_URL=http://10.0.2.2:3000
 
-# Country calling code used when a number is typed without one
-DEFAULT_COUNTRY_CODE=967
-
-# ------------------------- Release signing (optional) -------------------------
-# Without these the release build is signed with the debug key.
-#KEYSTORE_FILE=../masingar.jks
+# ------------------------- توقيع الإصدار (اختياري) -------------------------
+# بدون هذه القيم يُوقَّع الـ APK بمفتاح التصحيح ويمكن تثبيته مباشرة.
+#KEYSTORE_FILE=../masingar-lite.jks
 #KEYSTORE_PASSWORD=********
 #KEY_ALIAS=masingar
 #KEY_PASSWORD=********
-
-# ----------------------------- Push (optional) -------------------------------
-# Values from Firebase Console > Project settings > Your apps > SDK setup.
-# Leave empty to disable push (calls then only ring while the app is running).
-#FCM_API_KEY=
-#FCM_APP_ID=
-#FCM_PROJECT_ID=
-#FCM_SENDER_ID=
