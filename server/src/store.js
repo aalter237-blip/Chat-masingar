@@ -33,6 +33,24 @@ export function load() {
   } catch {
     db = blank(); // أول تشغيل أو ملف تالف → نبدأ من جديد
   }
+  if (remoteOn) {
+    // النسخة البعيدة هي المصدر الصحيح على الاستضافات المؤقتة
+    fetch(`${config.supabaseUrl}/rest/v1/app_state?id=eq.main&select=data`, {
+      headers: sbHeaders(),
+      signal: AbortSignal.timeout(8000),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rows) => {
+        const remote = rows?.[0]?.data;
+        if (remote && Array.isArray(remote.users) && remote.users.length) {
+          db = { ...blank(), ...remote };
+          console.log(`تم تحميل الحالة من Supabase (${db.users.length} أعضاء، ${db.messages.length} رسالة)`);
+        } else if (remote) {
+          db = { ...blank(), ...remote };
+        }
+      })
+      .catch((e) => console.error('remote load error:', e.message));
+  }
 }
 
 /* ------------------------------ الحفظ ------------------------------- */
@@ -50,6 +68,7 @@ export function save() {
       console.error('save failed:', err.message);
     }
   }, 200);
+  scheduleRemoteSave();
 }
 
 export function flushSync() {
@@ -61,6 +80,56 @@ export function flushSync() {
     fs.mkdirSync(config.dataDir, { recursive: true });
     fs.writeFileSync(DB_FILE, JSON.stringify(db), 'utf8');
   } catch { /* أفضل جهد */ }
+}
+
+/* ------------------- حفظ خارجي اختياري (Supabase) --------------------
+ *
+ * للاستضافات المجانية التي تمسح القرص عند إعادة التشغيل (Render وغيرها):
+ * الحالة كاملة (أعضاء/منشورات/رسائل) تُحفظ كسطر واحد في جدول app_state،
+ * والصور في حاوية storage باسم media — بدون أي مكتبة إضافية (fetch فقط).
+ * إذا لم تُضبط المتغيرات يعمل التطبيق محلياً كما هو تماماً.
+ * ------------------------------------------------------------------ */
+
+const remoteOn = !!(config.supabaseUrl && config.supabaseKey);
+let remoteTimer = null;
+let remoteDirty = false;
+
+const sbHeaders = (json = false) => ({
+  Authorization: `Bearer ${config.supabaseKey}`,
+  apikey: config.supabaseKey,
+  ...(json ? { 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' } : {}),
+});
+
+function scheduleRemoteSave() {
+  if (!remoteOn) return;
+  remoteDirty = true;
+  if (remoteTimer) return;
+  remoteTimer = setTimeout(async () => {
+    remoteTimer = null;
+    await flushRemote();
+  }, 3000);
+}
+
+/** يرفع الحالة الحالية إلى Supabase (أفضل جهد). */
+export async function flushRemote() {
+  if (!remoteOn || !remoteDirty) return;
+  try {
+    const res = await fetch(`${config.supabaseUrl}/rest/v1/app_state`, {
+      method: 'POST',
+      headers: sbHeaders(true),
+      body: JSON.stringify({ id: 'main', data: db, updated_at: new Date().toISOString() }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok || res.status === 201) remoteDirty = false;
+    else console.error('remote save failed:', res.status, await res.text().catch(() => ''));
+  } catch (err) {
+    console.error('remote save error:', err.message); // تُعاد المحاولة مع الحفظ التالي
+  }
+}
+
+/** شبكة أمان: رفع دوري كل دقيقة إذا بقيت تغييرات غير مرفوعة. */
+if (remoteOn) {
+  setInterval(() => { if (remoteDirty && !remoteTimer) flushRemote(); }, 60_000).unref();
 }
 
 /* ------------------------------ أدوات ------------------------------- */
@@ -228,11 +297,30 @@ export function removeMessage(msg) {
 
 export function saveMedia(bytes) {
   const file = uid() + '.jpg';
+  if (remoteOn) {
+    // رفع مباشر إلى Supabase Storage (حاوية media) — الرابط عام للقراءة
+    fetch(`${config.supabaseUrl}/storage/v1/object/media/${file}`, {
+      method: 'POST',
+      headers: { ...sbHeaders(), 'Content-Type': 'application/octet-stream' },
+      body: bytes,
+      signal: AbortSignal.timeout(15000),
+    }).catch((e) => console.error('media upload error:', e.message));
+    return { file, url: `${config.supabaseUrl}/storage/v1/object/public/media/${file}` };
+  }
   fs.writeFileSync(path.join(MEDIA_DIR, file), bytes);
   return { file, url: '/media/' + file };
 }
 
 function deleteMedia(file) {
+  if (!file) return;
+  if (remoteOn) {
+    fetch(`${config.supabaseUrl}/storage/v1/object/media/${file}`, {
+      method: 'DELETE',
+      headers: sbHeaders(),
+      signal: AbortSignal.timeout(8000),
+    }).catch(() => {});
+    return;
+  }
   try {
     fs.unlinkSync(path.join(MEDIA_DIR, file));
   } catch { /* غير موجود */ }

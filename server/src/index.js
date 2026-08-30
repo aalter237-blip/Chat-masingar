@@ -71,15 +71,18 @@ server.listen(config.port, config.host, () => {
   console.log(`API   : http://${shown}:${config.port}/api/circle`);
   console.log(`دائرة : ${store.members().length}/${config.maxMembers} أعضاء${config.joinCode ? ' (رمز انضمام مفعّل)' : ''}`);
   console.log(`بيانات: ${config.dataDir}`);
+  if (config.supabaseUrl) console.log('حفظ : Supabase خارجي مفعّل (البيانات تبقى بعد إعادة التشغيل)');
   console.log('-----------------------------------------------------------');
 });
 
-/* حفظ نظيف عند الإيقاف */
+/* الحفظ النظيف عند الإيقاف: محلي فوراً + محاولة رفع ما لم يُرفع */
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     store.flushSync();
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 2000).unref();
+    Promise.race([store.flushRemote(), new Promise((r) => setTimeout(r, 2500))]).finally(() => {
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 3000).unref();
+    });
   });
 }
 /* صلابة للعمل المتواصل ٢٤/٧:

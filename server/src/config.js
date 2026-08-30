@@ -35,11 +35,19 @@ export const config = {
   dataDir: process.env.DATA_DIR || join(ROOT, 'data'),
   webDir: process.env.WEB_DIR || join(ROOT, '..', 'web'),
 
-  /** حدود الأرشفة — تحفظ مساحة التخزين صغيرة دائماً. */
+  /** أرشفة صغيرة تلقائية (آخر N عنصر يُحفظ). */
   retention: {
     messages: int(process.env.MAX_MESSAGES, 1000),
     posts: int(process.env.MAX_POSTS, 200),
   },
+
+  /**
+   * حفظ خارجي اختياري عبر Supabase (مجاني وبلا بطاقة):
+   * يُستخدم مع الاستضافات المجانية التي تمسح القرص عند إعادة التشغيل
+   * (مثل Render) — بدونه تبقى البيانات على قرص السيرفر فقط.
+   */
+  supabaseUrl: (process.env.SUPABASE_URL || '').replace(/\/+$/, ''),
+  supabaseKey: process.env.SUPABASE_SERVICE_KEY || '',
 
   /** أقصى حجم لصورة واحدة بعد ضغطها في المتصفح. */
   maxPhotoBytes: int(process.env.MAX_PHOTO_KB, 300) * 1024,

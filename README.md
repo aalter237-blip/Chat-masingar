@@ -128,4 +128,8 @@ pm2 start server/src/index.js --name masingar-lite && pm2 save && pm2 startup
 
 ---
 
+> 🆓 **أسهل طريقة نشر مجانية (بدون بطاقة بنكية)**: [`docs/FREE-HOSTING.md`](docs/FREE-HOSTING.md) —
+> Render + Supabase خطوة بخطوة بالصور النصية، مع دعم حفظ خارجي مدمج
+> (`SUPABASE_URL` + `SUPABASE_SERVICE_KEY`) يحمي رسائلك من مسح قرص الخطة المجانية.
+
 تفاصيل أكثر: [`docs/SETUP.md`](docs/SETUP.md)
