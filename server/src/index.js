@@ -82,4 +82,15 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
     setTimeout(() => process.exit(0), 2000).unref();
   });
 }
+/* صلابة للعمل المتواصل ٢٤/٧:
+   - تنظيف أكواد التحقق المنتهية كل ١٠ دقائق (لا تراكم في الذاكرة)
+   - حفظ دوري كل ٥ دقائق كشبكة أمان فوق الحفظ الفوري بعد كل تعديل
+   - خطأ غير متوقع يُسجَّل ولا يُسقط السيرفر */
+setInterval(() => store.pruneCodes(), 10 * 60 * 1000).unref();
+setInterval(() => store.flushSync(), 5 * 60 * 1000).unref();
+
 process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e?.message || e));
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', err?.stack || err);
+  store.flushSync();
+});

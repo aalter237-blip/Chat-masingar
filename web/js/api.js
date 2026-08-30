@@ -1,4 +1,4 @@
-/* ماسنجر لايت — طبقة الاتصال: جلسة + REST + WebSocket */
+/* ماسنجر لايت — طبقة الاتصال: جلسة + REST + WebSocket مع إعادة اتصال ذكية */
 const TOKEN_KEY = 'ml_token';
 
 export const session = {
@@ -37,8 +37,12 @@ export async function api(path, { method = 'GET', body } = {}) {
   return data;
 }
 
-/** اتصال لحظي مع إعادة محاولة تلقائية. */
-export function connect(onEvent, onStatus) {
+/**
+ * اتصال لحظي مع إعادة محاولة تلقائية.
+ * onAuthLost يُستدعى عندما يرفض السيرفر الجلسة نهائياً (دخول من جهاز آخر)
+ * حتى لا تدور حلقة إعادة اتصال بلا نهاية.
+ */
+export function connect(onEvent, onStatus, onAuthLost) {
   const token = session.token;
   let ws = null;
   let closed = false;
@@ -51,10 +55,11 @@ export function connect(onEvent, onStatus) {
     ws = new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(token)}`);
     ws.onopen = () => { retry = 0; onStatus(true); };
     ws.onmessage = (e) => { try { onEvent(JSON.parse(e.data)); } catch { /* رسالة غير صالحة */ } };
-    ws.onerror = () => ws.close();
-    ws.onclose = () => {
+    ws.onerror = () => { try { ws.close(); } catch { /* تجاهل */ } };
+    ws.onclose = (e) => {
       onStatus(false);
       if (closed) return;
+      if (e.code === 4001) { onAuthLost && onAuthLost(); return; }
       retry += 1;
       timer = setTimeout(open, Math.min(1000 * retry, 10000));
     };

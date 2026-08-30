@@ -1,5 +1,10 @@
 /* ماسنجر لايت — واجهة التطبيق: دخول بالهاتف + منشورات + دردشة + أعضاء.
-   دائرة صغيرة (٥ أعضاء كحد أقصى)، بدون بحث ولا غرباء. */
+   دائرة صغيرة (٥ أعضاء كحد أقصى)، بدون بحث ولا غرباء.
+
+   مبادئ الاستقرار للعمل المتواصل:
+   - التحديثات اللحظية تُعيد رسم القوائم فقط ولا تمس حقل الكتابة أبداً
+   - عند عودة الاتصال تُجرى مزامنة كاملة لالتقاط ما فات أثناء الانقطاع
+   - الجلسة المُلغاة (دخول من جهاز آخر) تعيد المستخدم لشاشة الدخول بهدوء */
 
 import { api, session, connect } from './api.js';
 
@@ -47,8 +52,7 @@ const AVATAR_COLORS = ['#f4a261', '#e76f51', '#2a9d8f', '#457b9d', '#8e7dbe', '#
 function avatar(name, size = 40) {
   const letter = (name || '؟').trim().charAt(0);
   const color = AVATAR_COLORS[[...(name || 'x')].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
-  const el = h('span', { class: 'avatar', style: `width:${size}px;height:${size}px;background:${color};font-size:${Math.round(size * 0.45)}px` }, letter);
-  return el;
+  return h('span', { class: 'avatar', style: `width:${size}px;height:${size}px;background:${color};font-size:${Math.round(size * 0.45)}px` }, letter);
 }
 
 const fmtPhone = (p) => '+' + String(p || '').replace(/(\d{3})(?=\d)/, '$1 ');
@@ -111,12 +115,6 @@ const S = {
   connEl: null,
 };
 
-const memberName = (id) => {
-  if (S.me && id === S.me.id) return S.me.name;
-  const m = S.members.find((x) => x.id === id);
-  return m ? m.name : 'عضو';
-};
-
 /* ---------------------------- شاشة الدخول ---------------------------- */
 
 async function renderLogin(root) {
@@ -143,11 +141,8 @@ async function renderLogin(root) {
   let sentPhone = '';
   let isMember = false;
 
-  function drawInfo() {
-    info.replaceChildren(h('div', { class: 'seats' },
-      h('span', { class: 'dot' }), `أعضاء الدائرة: ${circle.members}/${circle.total}`));
-  }
-  drawInfo();
+  info.replaceChildren(h('div', { class: 'seats' },
+    h('span', { class: 'dot' }), `أعضاء الدائرة: ${circle.members}/${circle.total}`));
 
   async function requestCode() {
     const local = phone.value.replace(/[^0-9]/g, '');
@@ -257,9 +252,14 @@ async function boot(root) {
   drawApp(root);
 
   if (S.sock) S.sock.close();
-  S.sock = connect(onWsEvent, (up) => {
-    if (S.connEl) S.connEl.classList.toggle('hidden', up);
-  });
+  S.sock = connect(
+    onWsEvent,
+    (up) => {
+      if (S.connEl) S.connEl.classList.toggle('hidden', up);
+      if (up) syncState(); // التقاط أي شيء فات أثناء الانقطاع
+    },
+    () => { session.set(''); location.reload(); } // الجلسة أُبطلت (دخول من جهاز آخر)
+  );
 }
 
 function drawApp(root) {
@@ -285,10 +285,9 @@ function drawApp(root) {
 
 function navItem(id, icon, label) {
   const badge = h('span', { class: 'badge hidden', 'data-badge': id });
-  const btn = h('button', { class: 'navitem', 'data-tab': id, onclick: () => switchTab(id) },
+  return h('button', { class: 'navitem', 'data-tab': id, onclick: () => switchTab(id) },
     h('span', { class: 'nav-icon' }, icon, badge),
     h('span', { class: 'nav-label', text: label }));
-  return btn;
 }
 
 function switchTab(tab) {
@@ -319,57 +318,51 @@ function logout() {
 
 function onWsEvent(ev) {
   switch (ev.type) {
-    case 'hello':
-    case 'presence':
-      if (ev.online) S.online.add(ev.id); else S.online.delete(ev.id);
-      if (S.tab === 'members') renderMembers($('#main'));
+    case 'hello': // قائمة المتصلين الكاملة عند الاتصال
+      S.online = new Set(ev.online || []);
+      updatePresenceUI();
       break;
 
-    case 'post': {
-      const i = S.posts.findIndex((p) => p.id === ev.post.id);
-      if (i >= 0) S.posts[i] = ev.post; else S.posts.unshift(ev.post);
-      S.posts.sort((a, b) => b.createdAt - a.createdAt);
-      if (S.tab === 'feed') renderFeed($('#main'));
+    case 'presence':
+      if (ev.online) S.online.add(ev.id);
+      else S.online.delete(ev.id);
+      updatePresenceUI();
       break;
-    }
+
+    case 'post':
+      mergePost(ev.post);
+      break;
     case 'post_deleted':
       S.posts = S.posts.filter((p) => p.id !== ev.id);
-      if (S.tab === 'feed') renderFeed($('#main'));
+      refreshPostList();
       break;
 
     case 'like': {
       const p = S.posts.find((x) => x.id === ev.id);
-      if (p) { p.likes = ev.likes; if (S.tab === 'feed') renderFeed($('#main')); }
+      if (p) { p.likes = ev.likes; refreshPostList(); }
       break;
     }
     case 'comment': {
       const p = S.posts.find((x) => x.id === ev.postId);
       if (p && !p.comments.some((c) => c.id === ev.comment.id)) {
         p.comments.push(ev.comment);
-        if (S.tab === 'feed') renderFeed($('#main'));
+        refreshPostList();
       }
       break;
     }
 
-    case 'message': {
-      if (!S.messages.some((m) => m.id === ev.message.id)) {
-        S.messages.push(ev.message);
-        if (ev.message.author.id !== S.me.id) {
-          if (S.tab !== 'chat') { S.unread += 1; updateBadge(); }
-        }
-      }
-      if (S.tab === 'chat') renderChat($('#main'));
+    case 'message':
+      mergeMessage(ev.message);
       break;
-    }
     case 'message_deleted':
       S.messages = S.messages.filter((m) => m.id !== ev.id);
-      if (S.tab === 'chat') renderChat($('#main'));
+      refreshChatList();
       break;
 
     case 'typing':
       if (ev.id !== S.me.id) {
         S.typing = { name: ev.name, until: Date.now() + 3000 };
-        if (S.tab === 'chat') renderTyping();
+        renderTyping();
       }
       break;
 
@@ -379,12 +372,77 @@ function onWsEvent(ev) {
   }
 }
 
+/** يدمج منشوراً في الحالة ويحدّث القائمة فقط (بدون مسح حقل الكتابة). */
+function mergePost(post) {
+  if (!post) return;
+  const i = S.posts.findIndex((p) => p.id === post.id);
+  if (i >= 0) S.posts[i] = post;
+  else S.posts.unshift(post);
+  S.posts.sort((a, b) => b.createdAt - a.createdAt);
+  refreshPostList();
+}
+
+/** يدمج رسالة في الحالة ويحدّث القائمة فقط. */
+function mergeMessage(msg) {
+  if (!msg || S.messages.some((m) => m.id === msg.id)) return;
+  S.messages.push(msg);
+  if (msg.author.id !== S.me.id && S.tab !== 'chat') {
+    S.unread += 1;
+    updateBadge();
+  }
+  refreshChatList();
+}
+
+function refreshPostList() {
+  if (S.tab !== 'feed') return;
+  const list = $('#post-list');
+  if (list) drawPosts(list);
+}
+
+function refreshChatList() {
+  if (S.tab !== 'chat') return;
+  const list = $('#chat-list');
+  if (list) drawChat(list);
+}
+
+function updatePresenceUI() {
+  if (S.tab === 'members') {
+    const rows = $('#member-rows');
+    if (rows) drawMemberRows(rows);
+  }
+  const head = $('#chat-head-count');
+  if (head) head.textContent = `${S.online.size} متصل الآن`;
+}
+
+/** مزامنة كاملة بعد عودة الاتصال — تلتقط ما فات أثناء الانقطاع. */
+async function syncState() {
+  try {
+    const st = await api('/state');
+    S.me = st.me;
+    S.members = st.members;
+    S.posts = st.posts;
+    S.messages = st.messages;
+    S.online = new Set(st.online);
+    refreshPostList();
+    refreshChatList();
+    updatePresenceUI();
+    const sub = $('.app-sub');
+    if (sub) sub.textContent = `${S.members.length}/${S.circle.total} أعضاء`;
+  } catch (err) {
+    if (err.code === 'unauthorized') { session.set(''); location.reload(); }
+  }
+}
+
 async function refreshMembers() {
   try {
     const st = await api('/state');
     S.members = st.members;
-    if (!S.tab) return;
-    if (S.tab === 'members') renderMembers($('#main'));
+    if (S.tab === 'members') {
+      const rows = $('#member-rows');
+      if (rows) drawMemberRows(rows);
+    }
+    const sub = $('.app-sub');
+    if (sub) sub.textContent = `${S.members.length}/${S.circle.total} أعضاء`;
   } catch { /* مؤقتاً بلا اتصال */ }
 }
 
@@ -418,10 +476,11 @@ function renderFeed(main) {
     if (!t && !pendingPhoto) return;
     submit.disabled = true;
     try {
-      await api('/posts', { method: 'POST', body: { text: t, photo: pendingPhoto } });
+      const r = await api('/posts', { method: 'POST', body: { text: t, photo: pendingPhoto } });
       text.value = '';
       pendingPhoto = null;
       photoPreview.classList.add('hidden');
+      mergePost(r.post); // يظهر فوراً حتى لو كان WS منقطعاً
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -438,8 +497,7 @@ function renderFeed(main) {
     fileInput);
 
   const list = h('div', { id: 'post-list' });
-  const feed = h('div', { class: 'feed' }, composer, list);
-  main.replaceChildren(feed);
+  main.replaceChildren(h('div', { class: 'feed' }, composer, list));
   drawPosts(list);
 }
 
@@ -494,7 +552,7 @@ function postCard(p) {
     h('span', { class: 'action-icon', text: '💬' }),
     h('span', { text: p.comments.length ? String(p.comments.length) : 'تعليق' }));
 
-  const card = h('div', { class: 'card post' },
+  return h('div', { class: 'card post' },
     h('div', { class: 'post-head' },
       avatar(p.author.name),
       h('div', { class: 'post-meta' },
@@ -509,8 +567,6 @@ function postCard(p) {
     p.photo ? h('img', { class: 'post-photo', src: p.photo, alt: 'صورة', loading: 'lazy' }) : null,
     h('div', { class: 'post-actions' }, likeBtn, commentBtn),
     commentBody);
-
-  return card;
 }
 
 /* ------------------------------- الدردشة ------------------------------ */
@@ -548,10 +604,11 @@ function renderChat(main) {
     const t = input.value.trim();
     if (!t && !pendingPhoto) return;
     try {
-      await api('/messages', { method: 'POST', body: { text: t, photo: pendingPhoto } });
+      const r = await api('/messages', { method: 'POST', body: { text: t, photo: pendingPhoto } });
       input.value = '';
       pendingPhoto = null;
       preview.classList.add('hidden');
+      mergeMessage(r.message); // تظهر فوراً حتى لو كان WS منقطعاً
     } catch (err) { toast(err.message, 'error'); }
   }
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
@@ -566,21 +623,22 @@ function renderChat(main) {
   main.replaceChildren(h('div', { class: 'chat-wrap' },
     h('div', { class: 'chat-head' },
       h('span', { text: 'دردشة الدائرة' }),
-      h('span', { class: 'chat-head-sub', text: `${S.online.size} متصل الآن` })),
+      h('span', { class: 'chat-head-sub', id: 'chat-head-count', text: `${S.online.size} متصل الآن` })),
     list, typingEl, preview, bar));
 
   drawChat(list);
   renderTyping();
-  list.scrollTop = list.scrollHeight;
 }
 
 function drawChat(container) {
+  /* نمرر للأسفل فقط إذا كان المستخدم قريباً من الأسفل أصلاً (لا نقطع قراءته) */
+  const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 160;
   if (!S.messages.length) {
     container.replaceChildren(h('div', { class: 'chat-empty', text: 'ابدأوا المحادثة 👋 رسائل الدائرة كلها هنا.' }));
     return;
   }
   container.replaceChildren(S.messages.map((m) => chatBubble(m)));
-  container.scrollTop = container.scrollHeight;
+  if (nearBottom) container.scrollTop = container.scrollHeight;
 }
 
 function chatBubble(m) {
@@ -643,6 +701,8 @@ function renderMembers(main) {
     }
   });
 
+  const rows = h('div', { id: 'member-rows' });
+
   main.replaceChildren(h('div', { class: 'members-wrap' },
     h('div', { class: 'card circle-card' },
       h('div', { class: 'circle-title', text: `دائرة: ${S.circle.name}` }),
@@ -655,7 +715,7 @@ function renderMembers(main) {
 
     h('div', { class: 'card' },
       h('div', { class: 'section-title', text: 'الأعضاء المسجلون (برقم الهاتف)' }),
-      S.members.map((m) => memberRow(m))),
+      rows),
 
     h('div', { class: 'card' },
       h('div', { class: 'section-title', text: 'اسمك' }),
@@ -666,6 +726,12 @@ function renderMembers(main) {
       h('p', { class: 'hint', text: 'ماسنجر لايت: تطبيق خفيف جداً لدائرة صغيرة — منشورات ودردشة فقط، بلا بحث عن أشخاص وبلا مساحة تخزين كبيرة (الأرشيف يُقلَّم تلقائياً).' }),
       installBtn),
   ));
+
+  drawMemberRows(rows);
+}
+
+function drawMemberRows(container) {
+  container.replaceChildren(S.members.map((m) => memberRow(m)));
 }
 
 function memberRow(m) {

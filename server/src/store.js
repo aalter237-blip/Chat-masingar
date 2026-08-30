@@ -87,6 +87,14 @@ export function clearCode(phone) {
   codes.delete(phone);
 }
 
+/** تنظيف دوري: أكواد منتهية الصلاحية لا تبقى في الذاكرة (للعمل المتواصل ٢٤/٧). */
+export function pruneCodes() {
+  const now = Date.now();
+  for (const [phone, entry] of codes) {
+    if (now > entry.expires) codes.delete(phone);
+  }
+}
+
 /* ----------------------------- المستخدمون ---------------------------- */
 
 export const members = () => db.users;
