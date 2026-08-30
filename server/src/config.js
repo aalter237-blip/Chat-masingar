@@ -50,12 +50,17 @@ const textbeeDevice = process.env.TEXTBEE_DEVICE_ID || '';
  */
 const telegramOn = !!(process.env.TELEGRAM_BOT_TOKEN || '');
 
-/** With a gateway configured the verification code is sent as a real SMS. */
+/**
+ * Default delivery channel when no gateway is configured:
+ *   'none' -> the verification code is returned directly by the API (instant
+ *             login, no bot / no SMS provider needed). This is the out-of-box
+ *             default so a fresh deployment (e.g. on Bonto) is usable at once.
+ */
 const smsDefault = telegramOn
   ? 'telegram'
   : textbeeKey
     ? 'textbee'
-    : (process.env.NODE_ENV === 'production' ? 'console' : 'none');
+    : 'none';
 
 export const config = {
   env: process.env.NODE_ENV || 'development',
