@@ -1,9 +1,15 @@
 package io.masingar.chat.ui
 
 import android.Manifest
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -28,6 +34,7 @@ import io.masingar.chat.data.Prefs
 import io.masingar.chat.data.Repository
 import io.masingar.chat.net.SocketClient
 import io.masingar.chat.ui.theme.MasingarTheme
+import io.masingar.chat.util.CrashCatcher
 import io.masingar.chat.util.ContactsSync
 import io.masingar.chat.util.NetworkMonitor
 import io.masingar.chat.util.Notify
@@ -75,7 +82,37 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        showCrashReportIfAny()
         askPermissions()
+    }
+
+    /**
+     * After a crash the trace is stored by [CrashCatcher]; show it once on the
+     * next launch so the exact error can be read/copied without a computer.
+     */
+    private fun showCrashReportIfAny() {
+        val trace = CrashCatcher.consume(this) ?: return
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            val body = TextView(this).apply {
+                text = trace
+                textSize = 11f
+                setTextIsSelectable(true)
+                setPadding(48, 24, 48, 24)
+            }
+            AlertDialog.Builder(this)
+                .setTitle("⚠️ انهيار سابق — تقرير التشخيص")
+                .setMessage("حدث انهيار في آخر تشغيل. انسخ هذا التقرير وأرسله للمطور:\n\n")
+                .setView(body)
+                .setPositiveButton("نسخ التقرير") { _, _ ->
+                    val cm = getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager
+                    cm?.setPrimaryClip(ClipData.newPlainText("Masingar crash", trace))
+                    Toast.makeText(this, "تم نسخ التقرير", Toast.LENGTH_LONG).show()
+                }
+                .setNegativeButton("إغلاق", null)
+                .setCancelable(true)
+                .show()
+        }, 800)
     }
 
     override fun onStart() {
