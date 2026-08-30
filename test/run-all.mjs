@@ -63,6 +63,7 @@ step('web crypto engine', run('node', ['test/e2ee-web.mjs']));
 step('web <-> android protocol', run('node', ['test/e2ee-cross.mjs']));
 step('TextBee SMS provider (offline)', run('node', ['test/sms-textbee.mjs']));
 step('real use: personal numbers, no demo accounts', run('node', ['test/real-signup.mjs']));
+step('data continuity: sessions and data survive a restart', run('node', ['test/data-continuity.mjs']));
 
 const dataDir = mkdtempSync(join(tmpdir(), 'masingar-test-'));
 const server = spawn('node', ['src/index.js'], {
