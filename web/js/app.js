@@ -284,7 +284,17 @@ function initLogin() {
   demoList.classList.add('hidden');
   api.health()
     .then((info) => {
-      if (!info || info.demo !== true) return;
+      if (!info) return;
+      // Telegram OTP bot enabled but no phone linked yet -> tell the admin.
+      if (info.telegram?.enabled && info.telegram?.linked === 0) {
+        const banner = $('#tg-banner');
+        if (banner) {
+          const bot = info.telegram.botUsername || 'بوت تلجرام';
+          banner.textContent = '⚠️ بوت تلجرام مفعّل لكن لا يوجد أي رقم مرتبط بعد — أرسل للمستخدمين اسم البوت ' + bot + ' ليرسل كلٌّ منهم رقمه إليه مرة واحدة.';
+          banner.classList.remove('hidden');
+        }
+      }
+      if (info.demo !== true) return;
       for (const phone of DEMO_PHONES) {
         demoList.append(
           h('button', { class: 'demo-chip', type: 'button', onclick: () => ($('#phone').value = phone.replace(/^\d{3}/, '')) }, '+' + phone)
@@ -330,7 +340,14 @@ function initLogin() {
         $('#code').value = res.devCode;
       }
       const note = $('#demo-note');
-      if (res.provider === 'none') {
+      if (res.channel === 'telegram' && res.delivered) {
+        note.textContent = 'تم إرسال كود التحقق عبر تلجرام — افتح تلجرام وستجد الرسالة من البوت.';
+      } else if (res.channel === 'telegram' && !res.delivered) {
+        const bot = res.botUsername || 'بوت تلجرام';
+        note.textContent = 'لم يصل الكود: افتح بوت تلجرام ' + bot + ' وأرسل رقمك (مرة واحدة) ثم أعد طلب الكود.';
+      } else if (res.channel === 'console' && res.provider !== 'console') {
+        note.textContent = 'تعذّر الإرسال عبر تلجرام الآن — الكود مطبوع في سجلّ السيرفر (console).';
+      } else if (res.provider === 'none') {
         note.textContent = 'وضع تجريبي: لم يتم إرسال رسالة نصية (لا يوجد مزوّد SMS مضبوط) — استخدم الكود الظاهر بالأعلى.';
       } else if (res.provider === 'whatsapp' && res.delivered) {
         note.textContent = 'تم إرسال كود التحقق عبر واتساب إلى رقمك.';

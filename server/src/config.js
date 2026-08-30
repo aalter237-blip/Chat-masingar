@@ -42,10 +42,20 @@ const secret = loadOrCreateJwtSecret();
 const textbeeKey = process.env.TEXTBEE_API_KEY || '';
 const textbeeDevice = process.env.TEXTBEE_DEVICE_ID || '';
 
+/**
+ * Telegram OTP gateway (official Bot API — free, no SMS credits, no QR codes).
+ * When a bot token is set the verification code is delivered as a Telegram
+ * message to the chat that linked the user's phone number, and the SMS
+ * providers below become automatic fallbacks.
+ */
+const telegramOn = !!(process.env.TELEGRAM_BOT_TOKEN || '');
+
 /** With a gateway configured the verification code is sent as a real SMS. */
-const smsDefault = textbeeKey
-  ? 'textbee'
-  : (process.env.NODE_ENV === 'production' ? 'console' : 'none');
+const smsDefault = telegramOn
+  ? 'telegram'
+  : textbeeKey
+    ? 'textbee'
+    : (process.env.NODE_ENV === 'production' ? 'console' : 'none');
 
 export const config = {
   env: process.env.NODE_ENV || 'development',
@@ -69,41 +79,51 @@ export const config = {
 
   /**
    * OTP behaviour:
-   *   'none'     -> dev, the verification code is returned by the API
-   *   'console'  -> the code is printed in the server log
-   *   'textbee'  -> sent as a real SMS through https://textbee.dev (your Android
-   *                 phone acts as the gateway, messages leave from your SIM)
-   *   'twilio'   -> Twilio Messages API
-   *   'http'     -> generic POST {to, code, app} webhook
-   *   'whatsapp' -> message delivered on WhatsApp through the official Meta
-   *                 Cloud API (no QR code, no local gateway process)
+   *   'none'    -> dev, the verification code is returned by the API
+   *   'console' -> the code is printed in the server log
+   *   'telegram'-> sent as a Telegram message from the OTP bot
+   *                (TELEGRAM_BOT_TOKEN), SMS providers below are used as
+   *                automatic fallbacks
+   *   'textbee' -> sent as a real SMS through https://textbee.dev (your Android
+   *                phone acts as the gateway, messages leave from your SIM)
+   *   'twilio'  -> Twilio Messages API
+   *   'http'    -> generic POST {to, code, app} webhook
    */
-  smsProvider: process.env.SMS_PROVIDER || smsDefault,
+  smsProvider: process.env.SMS_PROVIDER || (telegramOn ? 'telegram' : smsDefault),
   smsHttpUrl: process.env.SMS_HTTP_URL || '',
   smsHttpToken: process.env.SMS_HTTP_TOKEN || '',
   twilioSid: process.env.TWILIO_ACCOUNT_SID || '',
   twilioToken: process.env.TWILIO_AUTH_TOKEN || '',
   twilioFrom: process.env.TWILIO_FROM || '',
 
+  /**
+   * Telegram OTP bot (official Bot API — free, no SMS credits):
+   *   - create the bot once with @BotFather and set TELEGRAM_BOT_TOKEN.
+   *   - every user opens the bot once, presses Start and sends his phone
+   *     number; the link (phone <-> chat) is stored in the database and
+   *     survives restarts.
+   *   - every requested verification code is then delivered to the linked
+   *     chat as a Telegram message, with the SMS provider (if any) as
+   *     fallback.
+   *   - the bot never reads anything else: incoming messages are only used
+   *     to (un)link phone numbers.
+   */
+  telegramBotToken: (process.env.TELEGRAM_BOT_TOKEN || '')
+    .trim()
+    // tokens never end with a dot — a trailing "." is a paste artifact from
+    // copying the token out of a chat message
+    .replace(/\.+$/, ''),
+  /** Public bot username WITHOUT the leading @ (shown in the apps). */
+  telegramBotUsername: (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, ''),
+  telegramOtpText: process.env.TELEGRAM_OTP_TEXT ||
+    '🔐 ماسنجر — كود التحقق\n\n' +
+    'كود التحقق الخاص بك هو:\n${code}\n\n' +
+    'صالح لمدة 5 دقائق. لا تشاركه مع أي شخص.\n\n' +
+    'إذا لم تطلب هذا الكود، تجاهل هذه الرسالة.',
+
   /** TextBee (https://textbee.dev) - Android phone as an SMS gateway. */
   textbeeApiKey: textbeeKey,
   textbeeDeviceId: textbeeDevice,
-
-  /**
-   * WhatsApp (https://developers.facebook.com/docs/whatsapp/cloud-api)
-   * Business-initiated OTP messages MUST use an approved template, so we send
-   * the code as the first body parameter of a configurable template. No QR code
-   * is involved: the server talks straight to the Meta Cloud API.
-   */
-  whatsappBaseUrl: (process.env.WHATSAPP_BASE_URL || 'https://graph.facebook.com').replace(/\/+$/, ''),
-  whatsappApiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
-  whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-  whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
-  whatsappTemplateName: process.env.WHATSAPP_TEMPLATE_NAME || 'masingar_otp',
-  whatsappTemplateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'ar',
-  whatsappTimeoutMs: Number(process.env.WHATSAPP_TIMEOUT_MS || 10000),
-  whatsappRetries: Number(process.env.WHATSAPP_RETRIES ?? 1),
-  whatsappRetryDelayMs: Number(process.env.WHATSAPP_RETRY_DELAY_MS || 1500),
 
   /**
    * The gateway forwards the message to a phone, so it can be slow or briefly

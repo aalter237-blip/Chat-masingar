@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { config } from './config.js';
 import { log, randomCode, safeEqual, now } from './util.js';
 import * as store from './store.js';
+import * as telegram from './telegram.js';
 
 export function signAccessToken(user) {
   return jwt.sign({ sub: user.id, phone: user.phone, typ: 'access' }, config.jwtSecret, {
@@ -84,117 +85,82 @@ export function otpText(code) {
 }
 
 /**
- * Sends one WhatsApp message through the official Meta Cloud API.
- *
- * Meta only lets a business send a template message first, so we send the OTP
- * as the first body variable of `whatsappTemplateName`. There is no QR code
- * involved and no local gateway process to keep alive.
- *
- * @returns true when Meta accepted the message. A refusal (4xx) is reported
- * immediately; a network error or a server error is retried.
- */
-async function whatsappSend(phone, code) {
-  const base = String(config.whatsappBaseUrl || 'https://graph.facebook.com').replace(/\/+$/, '');
-  const version = 'v' + String(config.whatsappApiVersion || 'v20.0').replace(/^v/i, '');
-  const phoneId = String(config.whatsappPhoneNumberId || '');
-  const url = `${base}/${version}/${encodeURIComponent(phoneId)}/messages`;
-  const attempts = Math.max(1, Number(config.whatsappRetries) + 1);
-
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.whatsappAccessToken}`,
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: '+' + phone,
-          type: 'template',
-          template: {
-            name: config.whatsappTemplateName,
-            language: { code: config.whatsappTemplateLanguage },
-            components: [{
-              type: 'body',
-              parameters: [{ type: 'text', text: code }],
-            }],
-          },
-        }),
-        signal: AbortSignal.timeout(Number(config.whatsappTimeoutMs) || 10000),
-      });
-
-      if (res.ok) return true;
-
-      const detail = (await res.text().catch(() => '')).slice(0, 300);
-      if (res.status < 500) {
-        log(`sms: whatsapp refused (${res.status})`, detail);
-        return false;
-      }
-      log(`sms: whatsapp error ${res.status} (attempt ${attempt}/${attempts})`, detail);
-    } catch (err) {
-      log(`sms: whatsapp attempt ${attempt}/${attempts} failed ->`, err.message);
-    }
-    if (attempt < attempts) await sleep(Number(config.whatsappRetryDelayMs) || 1500);
-  }
-  return false;
-}
-
-/**
  * Send a verification code.
- * provider 'none'     -> code is returned to the caller (development / demo)
- * provider 'console'  -> code is printed in the server log
- * provider 'textbee'  -> real SMS through textbee.dev (Android phone gateway)
- * provider 'twilio'   -> Twilio Verify / Messages API
- * provider 'http'     -> generic POST {to, code} webhook
- * provider 'whatsapp' -> WhatsApp message through the official Meta Cloud API
+ *
+ * Delivery chain (first success wins, so the code always reaches the user):
+ *   1. telegram -> a Telegram message from the OTP bot to the chat that
+ *                  linked the user's phone number (official Bot API)
+ *   2. sms      -> the configured SMS provider (textbee / twilio / http)
+ *   3. console  -> printed in the server log (used as a safety net whenever a
+ *                  gateway is configured, so a login can never dead-end)
+ *
+ * The returned `channel` tells the client how the code was actually sent.
  */
 export async function sendOtp(phone) {
   const code = randomCode();
   const expires = now() + config.otpTtlMs;
   store.saveOtp(phone, code, expires);
 
+  const provider = config.smsProvider;
   let delivered = false;
-  try {
-    if (config.smsProvider === 'whatsapp' && config.whatsappPhoneNumberId && config.whatsappAccessToken) {
-      delivered = await whatsappSend(phone, code);
-      if (!delivered) log(`sms: whatsapp could not deliver the code to +${phone}`);
-    } else if (config.smsProvider === 'textbee' && config.textbeeApiKey) {
-      delivered = await textbeeSend(phone, code);
-      if (!delivered) log(`sms: textbee could not deliver the code to +${phone}`);
-    } else if (config.smsProvider === 'twilio' && config.twilioSid && config.twilioToken) {
-      const basic = Buffer.from(`${config.twilioSid}:${config.twilioToken}`).toString('base64');
-      const body = new URLSearchParams({
-        To: '+' + phone,
-        From: config.twilioFrom || 'Masingar',
-        Body: `Masingar code: ${code}`,
-      });
-      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.twilioSid}/Messages.json`, {
-        method: 'POST',
-        headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      });
-      delivered = res.ok;
-      if (!res.ok) log('sms: twilio error', res.status, await res.text().catch(() => ''));
-    } else if (config.smsProvider === 'http' && config.smsHttpUrl) {
-      const res = await fetch(config.smsHttpUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: config.smsHttpToken ? `Bearer ${config.smsHttpToken}` : '' },
-        body: JSON.stringify({ to: '+' + phone, phone: '+' + phone, code, app: 'masingar' }),
-      });
-      delivered = res.ok;
-      if (!res.ok) log('sms: webhook error', res.status);
-    } else if (config.smsProvider === 'console') {
-      log(`sms: verification code for +${phone} is ${code}`);
+  let deliveredVia = '';
+  let lastError = '';
+
+  // 1) Telegram bot (official API — primary channel when configured)
+  if (config.telegramBotToken) {
+    const r = await telegram.sendOtp(phone, code);
+    if (r.ok) {
       delivered = true;
+      deliveredVia = 'telegram';
     } else {
-      // 'none' - development mode: the API response carries the code.
-      log(`sms: [dev mode] verification code for +${phone} is ${code}`);
+      lastError = r.error || 'telegram غير متاح';
+      log(`otp: telegram delivery to +${phone} failed -> ${lastError}`);
     }
-  } catch (err) {
-    log('sms: send failed ->', err.message);
   }
-  return { code, expires, delivered, provider: config.smsProvider };
+
+  // 2) SMS providers
+  if (!delivered && provider === 'textbee' && config.textbeeApiKey) {
+    delivered = await textbeeSend(phone, code);
+    if (delivered) deliveredVia = 'textbee';
+    else if (!delivered) log(`sms: textbee could not deliver the code to +${phone}`);
+  }
+  if (!delivered && provider === 'twilio' && config.twilioSid && config.twilioToken) {
+    const basic = Buffer.from(`${config.twilioSid}:${config.twilioToken}`).toString('base64');
+    const body = new URLSearchParams({
+      To: '+' + phone,
+      From: config.twilioFrom || 'Masingar',
+      Body: `Masingar code: ${code}`,
+    });
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.twilioSid}/Messages.json`, {
+      method: 'POST',
+      headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    delivered = res.ok;
+    if (delivered) deliveredVia = 'twilio';
+    else log('sms: twilio error', res.status, await res.text().catch(() => ''));
+  }
+  if (!delivered && provider === 'http' && config.smsHttpUrl) {
+    const res = await fetch(config.smsHttpUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: config.smsHttpToken ? `Bearer ${config.smsHttpToken}` : '' },
+      body: JSON.stringify({ to: '+' + phone, phone: '+' + phone, code, app: 'masingar' }),
+    });
+    delivered = res.ok;
+    if (delivered) deliveredVia = 'http';
+    else log('sms: webhook error', res.status);
+  }
+
+  // 3) Console safety net: whenever a gateway is configured but failed, print
+  // the code in the server log so the admin can still log the user in.
+  if (!delivered && (provider === 'console' || provider === 'telegram' || config.telegramBotToken)) {
+    log(`otp: verification code for +${phone} is ${code}${lastError ? ` (telegram failed: ${lastError})` : ''}`);
+    delivered = true;
+    deliveredVia = 'console';
+  }
+
+  if (!delivered) log(`otp: no channel could deliver the code to +${phone}`);
+  return { code, expires, delivered, provider, channel: deliveredVia, error: delivered ? undefined : lastError };
 }
 
 export function checkOtp(phone, code) {

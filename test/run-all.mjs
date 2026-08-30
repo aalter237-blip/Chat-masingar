@@ -7,7 +7,6 @@
  * 2. web engine unit tests      (test/e2ee-web.mjs)
  * 3. web <-> android cross test (test/e2ee-cross.mjs)
  * 4. TextBee SMS provider       (test/sms-textbee.mjs, offline, fetch is stubbed)
- *    WhatsApp (Meta Cloud API)  (test/sms-whatsapp.mjs, offline, fetch is stubbed)
  * 5. real signup + messaging    (test/real-signup.mjs, own server, DEMO_SEED=false)
  * 6. server REST/WebSocket e2e  (server/test/e2e.mjs, own server + temp db)
  * 7. live end-to-end            (test/e2ee-live.mjs, same server)
@@ -63,7 +62,6 @@ step('crypto reference vectors (python3)', run('python3', ['test/verify-crypto.p
 step('web crypto engine', run('node', ['test/e2ee-web.mjs']));
 step('web <-> android protocol', run('node', ['test/e2ee-cross.mjs']));
 step('TextBee SMS provider (offline)', run('node', ['test/sms-textbee.mjs']));
-step('WhatsApp Meta Cloud API provider (offline)', run('node', ['test/sms-whatsapp.mjs']));
 step('real use: personal numbers, no demo accounts', run('node', ['test/real-signup.mjs']));
 
 const dataDir = mkdtempSync(join(tmpdir(), 'masingar-test-'));

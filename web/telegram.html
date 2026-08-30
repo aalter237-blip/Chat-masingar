@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b141a" />
+    <meta name="robots" content="noindex" />
+    <title>بوت تلجرام — ماسنجر</title>
+    <link rel="icon" href="icons/icon-192.png" />
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
+      .tg-card { max-width: 460px; }
+      .tg-status { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.05); font-size: .92rem; }
+      .tg-status .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #f44336; }
+      .tg-status.on .dot { background: #2aabee; box-shadow: 0 0 8px #2aabee66; }
+      .tg-steps { margin: 12px auto; padding: 0 18px; text-align: right; color: var(--muted, #8696a0); font-size: .9rem; line-height: 2; }
+      .tg-steps li::marker { color: #2aabee; }
+      .tg-back { display: inline-block; margin-top: 16px; opacity: .75; }
+      .tg-note { margin-top: 14px; font-size: .85rem; line-height: 1.8; }
+      .chip { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #2aabee22; color: #2aabee; font-weight: 700; direction: ltr; }
+      .tg-list { margin-top: 10px; font-size: .9rem; }
+      .tg-list .row { display: flex; justify-content: space-between; padding: 7px 2px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <section id="screen-tg" class="screen active">
+        <div class="login-card tg-card">
+          <div class="brand">
+            <div class="brand-logo">مـ</div>
+            <h1>بوت تلجرام للتحقق</h1>
+            <p class="muted">
+              من هنا تتابع بوت تلجرام الذي يرسل رموز التحقق (OTP). كل مستخدم يرسل رقم
+              هاتفه إلى البوت <strong>مرة واحدة</strong> — بعدها تصله كل رموز التحقق
+              كرسائل تلجرام. لا حاجة لأي ربط آخر.
+            </p>
+          </div>
+
+          <div id="tg-status" class="tg-status"><span class="dot"></span><span id="tg-status-text">جارٍ التحميل…</span></div>
+
+          <div id="tg-list-wrap" class="hidden">
+            <strong>الأرقام المرتبطة (<span id="tg-count">0</span>)</strong>
+            <div id="tg-list" class="tg-list"></div>
+          </div>
+
+          <ol class="tg-steps">
+            <li>أنشئ البوت مرة واحدة: افتح <strong>@BotFather</strong> في تلجرام ← <strong>/newbot</strong> ← انسخ التوكن.</li>
+            <li>ضع التوكن في إعدادات السيرفر: <code>TELEGRAM_BOT_TOKEN=…</code> (و<code>TELEGRAM_BOT_USERNAME</code> ليظهر اسم البوت في التطبيق).</li>
+            <li>أرسل اسم البوت للمستخدمين: يفتحونه مرة واحدة، يضغطون <strong>Start</strong>، ويرسلون أرقامهم — وتظهر الأرقام هنا.</li>
+            <li>بعدها كل كود تحقق يصل كرسالة تلجرام فورًا، بدون SMS ولا رسوم.</li>
+          </ol>
+
+          <p class="tg-note muted">
+            ملاحظة: البوت يرسل الرموز فقط ولا يقرأ محادثات أخرى. المستخدم يستطيع إلغاء
+            الربط بأمر <span class="chip">/unlink</span> داخل البوت.
+          </p>
+
+          <a class="tg-back" href="/">← العودة للتطبيق</a>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="js/telegram-admin.js"></script>
+  </body>
+</html>
