@@ -148,18 +148,28 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                         }
                         // Compose state must only be changed on the main thread. In
                         // particular, assigning `code` from the IO block used to
-                        // crash the screen on demo servers that return devCode.
+                        // crash the screen on demo servers that return devCode
+                        // (fixed in PR #6); the whole block below runs on Main.
                         if (currentStage == "phone") {
-                            val res = otpResult ?: error("empty OTP response")
+                            val res = otpResult ?: error("استجابة فارغة من الخادم — أعد المحاولة")
                             val dev = res.optString("devCode")
+                            val channel = res.optString("channel")
                             info = when {
                                 dev.isNotBlank() -> {
                                     code = dev
-                                    "وضع تجريبي: كود التحقق $dev"
+                                    // The server has no delivery gateway configured
+                                    // (SMS_PROVIDER=none and/or no Telegram bot token):
+                                    // the code is returned by the API and will NOT
+                                    // arrive as a Telegram message.
+                                    if (channel == "telegram") {
+                                        "لم يصلك الكود عبر تلجرام (البوت غير مفعّل على السيرفر) — الكود التجريبي: $dev"
+                                    } else {
+                                        "وضع تجريبي (لا بوت تلجرام ولا SMS): كود التحقق $dev — استخدمه مباشرة"
+                                    }
                                 }
-                                res.optString("channel") == "telegram" && res.optBoolean("delivered", false) ->
+                                channel == "telegram" && res.optBoolean("delivered", false) ->
                                     "تم إرسال كود التحقق عبر تلجرام — افتح تلجرام وستجد الرسالة من البوت"
-                                res.optString("channel") == "telegram" -> {
+                                channel == "telegram" -> {
                                     val bot = res.optString("botUsername").ifBlank { "بوت تلجرام" }
                                     "لم يصل الكود: افتح بوت تلجرام $bot وأرسل رقمك (مرة واحدة) ثم أعد طلب الكود"
                                 }
