@@ -1,25 +1,18 @@
 {
-  "name": "masingar",
-  "version": "1.0.0",
+  "name": "masingar-lite",
+  "version": "2.0.0",
   "private": true,
-  "description": "Masingar Chat — root entrypoint so platforms like Bonto can run the server (start script + server dependencies).",
+  "description": "ماسنجر لايت — تطبيق دائرة صغيرة (٥ أعضاء): منشورات ودردشة ودخول برقم الهاتف، بحجم ومساحة صغيرين",
   "scripts": {
     "start": "node server/src/index.js",
     "dev": "node --watch server/src/index.js",
-    "seed": "node server/src/seed.js"
+    "test": "node test/api-smoke.mjs && node test/realtime.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18"
   },
   "dependencies": {
-    "compression": "^1.7.5",
     "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.2",
-    "multer": "^2.0.1",
-    "pino": "^10.3.1",
     "ws": "^8.18.0"
-  },
-  "optionalDependencies": {
-    "better-sqlite3": "^11.7.0"
   }
 }

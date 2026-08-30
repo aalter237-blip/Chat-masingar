@@ -1,128 +1,20 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-    <meta name="theme-color" content="#0b141a" />
-    <meta name="description" content="ماسنجر — دردشة ومكالمات صوتية وفيديو عالية الجودة حتى على الشبكات الضعيفة" />
-    <title>ماسنجر — دردشة ومكالمات</title>
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon-192.png" />
-    <link rel="apple-touch-icon" href="icons/icon-192.png" />
-    <link rel="stylesheet" href="css/style.css" />
-  </head>
-  <body>
-    <div id="app" class="app">
-      <!-- ------------------------------- login ------------------------------- -->
-      <section id="screen-login" class="screen active">
-        <div class="login-card">
-          <div class="brand">
-            <div class="brand-logo" id="brand-logo">مـ</div>
-            <h1 data-i18n="loginTitle">مرحباً بك في ماسنجر</h1>
-            <p class="muted" data-i18n="loginSub">
-              سجّل الدخول برقم هاتفك للتواصل مع جهات الاتصال التي تستخدم التطبيق.
-            </p>
-          </div>
-
-          <form id="login-form" autocomplete="on">
-            <label class="field">
-              <span data-i18n="phoneLabel">رقم الهاتف</span>
-              <div class="phone-row">
-                <select id="country-code" class="input code-select" aria-label="country code"></select>
-                <input
-                  id="phone"
-                  class="input"
-                  type="tel"
-                  inputmode="tel"
-                  placeholder="771234567"
-                  data-i18n-ph="phoneHint"
-                  autocomplete="tel"
-                  required
-                />
-              </div>
-            </label>
-
-            <div id="code-group" class="field hidden">
-              <span data-i18n="codeLabel">كود التحقق (٦ أرقام)</span>
-              <input id="code" class="input code-input" type="text" inputmode="numeric" maxlength="6" placeholder="******" />
-              <small id="dev-code" class="dev-code hidden"></small>
-            </div>
-
-            <button id="login-submit" class="btn primary block" type="submit" data-i18n="sendCode">إرسال كود التحقق</button>
-            <button id="resend" class="btn ghost block hidden" type="button" data-i18n="resend">إعادة إرسال الكود</button>
-            <p id="login-error" class="error hidden"></p>
-          </form>
-
-          <div id="tg-banner" class="tg-banner hidden"></div>
-
-          <div class="demo-box">
-            <strong data-i18n="demoUsers">حسابات تجريبية للاختبار</strong>
-            <div id="demo-list" class="demo-list"></div>
-            <small class="muted" id="demo-note"></small>
-          </div>
-        </div>
-      </section>
-
-      <!-- -------------------------------- main ------------------------------- -->
-      <section id="screen-main" class="screen">
-        <header class="appbar">
-          <div class="appbar-title" id="appbar-title" data-i18n="chats">الدردشات</div>
-          <div class="appbar-actions">
-            <button class="icon-btn" id="btn-search" title="بحث" aria-label="بحث">🔍</button>
-            <button class="icon-btn" id="btn-new" title="جديد" aria-label="جديد">＋</button>
-          </div>
-        </header>
-        <div class="views">
-          <div class="view active" id="view-chats"></div>
-          <div class="view" id="view-calls"></div>
-          <div class="view" id="view-contacts"></div>
-          <div class="view" id="view-settings"></div>
-        </div>
-        <nav class="tabbar">
-          <button class="tab active" data-tab="chats"><span>💬</span><small data-i18n="chats">الدردشات</small></button>
-          <button class="tab" data-tab="calls"><span>📞</span><small data-i18n="calls">المكالمات</small></button>
-          <button class="tab" data-tab="contacts"><span>👥</span><small data-i18n="contacts">جهات الاتصال</small></button>
-          <button class="tab" data-tab="settings"><span>⚙️</span><small data-i18n="settings">الإعدادات</small></button>
-        </nav>
-      </section>
-
-      <!-- -------------------------------- chat ------------------------------- -->
-      <section id="screen-chat" class="screen">
-        <header class="chat-header">
-          <button class="icon-btn" id="chat-back" aria-label="رجوع">‹</button>
-          <div class="peer" id="chat-peer">
-            <div class="avatar" id="chat-avatar"></div>
-            <div class="peer-meta">
-              <div class="peer-name" id="chat-name"></div>
-              <div class="peer-status muted" id="chat-status"></div>
-            </div>
-          </div>
-          <div class="appbar-actions">
-            <button class="icon-btn" id="btn-wallpaper" title="خلفية الدردشة">🎨</button>
-            <button class="icon-btn" id="btn-voice-call" title="مكالمة صوتية">📞</button>
-            <button class="icon-btn" id="btn-video-call" title="مكالمة فيديو">🎥</button>
-          </div>
-        </header>
-        <div id="messages" class="messages"></div>
-        <div id="typing-indicator" class="typing-indicator hidden"></div>
-        <form id="composer" class="composer">
-          <button type="button" class="icon-btn" id="btn-attach" title="إرفاق">📎</button>
-          <input type="file" id="file-input" accept="image/*,video/*,audio/*,*/*" hidden />
-          <button type="button" class="icon-btn hidden" id="btn-emoji">😊</button>
-          <textarea id="input" class="input composer-input" rows="1" placeholder="اكتب رسالة..." data-i18n-ph="writeMessage"></textarea>
-          <button type="button" class="icon-btn" id="btn-record" title="تسجيل صوتي">🎤</button>
-          <button type="submit" class="send-btn" id="btn-send" title="إرسال">➤</button>
-        </form>
-        <div id="emoji-bar" class="emoji-bar hidden"></div>
-      </section>
-
-      <!-- ------------------------------ overlays ------------------------------ -->
-      <div id="incoming-overlay" class="overlay hidden"></div>
-      <div id="call-overlay" class="overlay hidden"></div>
-      <div id="toasts" class="toasts"></div>
-      <div id="modal-root"></div>
-    </div>
-
-    <script type="module" src="js/app.js"></script>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1877f2">
+  <meta name="description" content="ماسنجر لايت — دائرة خاصة صغيرة للتواصل مع أقرب أشخاصك">
+  <title>ماسنجر لايت</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
 </html>

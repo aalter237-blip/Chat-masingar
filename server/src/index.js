@@ -1,117 +1,99 @@
 /**
- * Masingar Chat - server entry point.
- *   REST  : http://host:PORT/api     (auth, messages, contacts, uploads, ICE)
- *   WS    : ws://host:PORT/ws        (presence, typing, delivery, call signalling)
- *   Web   : http://host:PORT/        (browser client, served statically)
+ * ماسنجر لايت — سيرفر صغير لكل ما يحتاجه التطبيق:
+ *   REST  /api      (دخول بالهاتف، منشورات، دردشة، أعضاء)
+ *   WS    /ws       (تحديثات لحظية وحضور)
+ *   Web   /         (تطبيق الويب الخفيف PWA)
+ *
+ * بلا قاعدة بيانات وبلا مكتبات ثقيلة: ملف JSON واحد + مجلد صور صغير.
  */
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
-import compression from 'compression';
-import { config, ROOT } from './config.js';
-import { log, now } from './util.js';
-import apiRouter from './api.js';
-import { attachWebSocket } from './ws.js';
-import { seed } from './seed.js';
-import { iceServers } from './ice.js';
-import { start as startTelegramBot, stop as stopTelegramBot } from './telegram.js';
+import { config } from './config.js';
+import * as store from './store.js';
+import { api } from './api.js';
+import { attachWebSocket } from './realtime.js';
+
+store.load();
 
 const app = express();
-app.set('trust proxy', true);
 app.disable('x-powered-by');
-app.use(compression());
-app.use(express.json({ limit: '4mb' }));
-app.use(express.urlencoded({ extended: true, limit: '4mb' }));
+app.set('trust proxy', true);
+app.use(express.json({ limit: '3mb' })); // الصور تُرسل base64 بعد ضغطها في المتصفح
 
-/* --------------------------- request logging -------------------------- */
-app.use((req, res, next) => {
-  const started = now();
-  res.on('finish', () => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
-      const ms = now() - started;
-      log(`${req.method} ${req.path} ${res.statusCode} ${ms}ms`);
-    }
-  });
-  next();
-});
+app.use('/api', api);
 
-/* -------------------------------- API --------------------------------- */
-app.use('/api', apiRouter);
-
-/* ------------------------------- uploads ------------------------------ */
+/* صور الوسائط (تُخزَّن مضغوطة أصلاً — لا نحتاج معالجة على السيرفر) */
 app.use(
-  '/uploads',
-  express.static(config.uploadsDir, {
+  '/media',
+  express.static(store.MEDIA_DIR, {
     maxAge: '30d',
-    fallthrough: true,
     setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
   })
 );
 
-/* ------------------------------ web client ---------------------------- */
-const webDir = config.webDir;
-if (fs.existsSync(webDir)) {
+/* تطبيق الويب */
+if (fs.existsSync(config.webDir)) {
   app.use(
-    express.static(webDir, {
+    express.static(config.webDir, {
       index: 'index.html',
       setHeaders(res, filePath) {
-        if (filePath.endsWith('.html') || filePath === webDir) res.setHeader('Cache-Control', 'no-cache');
+        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
       },
     })
   );
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/ws') || req.path.startsWith('/uploads')) return next();
-    res.sendFile(path.join(webDir, 'index.html'));
+    if (req.path.startsWith('/api') || req.path.startsWith('/media') || req.path.startsWith('/ws')) return next();
+    res.sendFile(path.join(config.webDir, 'index.html'));
   });
 } else {
-  app.get('/', (_req, res) => res.type('html').send('<h1>Masingar server</h1><p>Web client not found. API is at <code>/api</code>.</p>'));
+  app.get('/', (_req, res) =>
+    res.type('html').send('<h1>ماسنجر لايت</h1><p>واجهة الويب غير موجودة — الـ API على <code>/api</code></p>')
+  );
 }
 
-/* ------------------------------- errors -------------------------------- */
-app.use((err, req, res, _next) => {
-  log('error:', err?.message);
+/* أخطاء موحّدة */
+app.use((err, _req, res, _next) => {
+  console.error('error:', err?.message);
   const status = err?.status || 500;
   res.status(status).json({ ok: false, code: err?.code || 'server_error', message: err?.message || 'خطأ في الخادم' });
 });
 
-/* -------------------------------- start -------------------------------- */
 const server = http.createServer(app);
 attachWebSocket(server);
 
 server.listen(config.port, config.host, () => {
-  const seeded = seed();
-  log('-------------------------------------------------------------');
-  log(`Masingar server  v1.0.0   (${config.env})`);
-  log(`REST  : http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}/api`);
-  log(`WS    : ws://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}/ws`);
-  log(`Web   : http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}/`);
-  log(`DB    : ${config.dbPath}`);
-  log(`SMS   : provider=${config.smsProvider}${config.smsProvider === 'none' ? ' (codes are returned by the API)' : ''}`);
-  if (config.telegramBotToken) {
-    startTelegramBot();
-    log(`OTP   : telegram bot${config.telegramBotUsername ? ' @' + config.telegramBotUsername : ''} — users send their phone number to the bot once, codes arrive there as Telegram messages`);
-  }
-  if (config.smsProvider === 'textbee') {
-    if (!config.textbeeApiKey) log('SMS   : WARNING textbee is selected but TEXTBEE_API_KEY is empty -> no SMS will be sent');
-    else log(`SMS   : textbee device=${config.textbeeDeviceId || '(account default)'} base=${config.textbeeBaseUrl}`);
-  }
-  log(`TURN  : ${config.turnSecret && config.turnHost ? `coturn ${config.turnHost}` : config.freeTurn ? 'free public relay (set TURN_SECRET/TURN_HOST for your own)' : 'STUN only (set TURN_SECRET/TURN_HOST for relaying)'}`);
-  log(`PUSH  : ${process.env.FCM_PROJECT_ID ? 'FCM configured' : 'disabled (set FCM_* to enable)'}`);
-  if (seeded.created) log(`Demo users: ${seeded.users.map((u) => u.phone).join(' ')}`);
-  log('-------------------------------------------------------------');
+  const shown = config.host === '0.0.0.0' ? 'localhost' : config.host;
+  console.log('-----------------------------------------------------------');
+  console.log(`ماسنجر لايت  (${config.env})`);
+  console.log(`Web   : http://${shown}:${config.port}/`);
+  console.log(`API   : http://${shown}:${config.port}/api/circle`);
+  console.log(`دائرة : ${store.members().length}/${config.maxMembers} أعضاء${config.joinCode ? ' (رمز انضمام مفعّل)' : ''}`);
+  console.log(`بيانات: ${config.dataDir}`);
+  if (config.supabaseUrl) console.log('حفظ : Supabase خارجي مفعّل (البيانات تبقى بعد إعادة التشغيل)');
+  console.log('-----------------------------------------------------------');
 });
 
+/* الحفظ النظيف عند الإيقاف: محلي فوراً + محاولة رفع ما لم يُرفع */
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
-    log(`shutting down (${sig})`);
-    stopTelegramBot();
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 3000).unref();
+    store.flushSync();
+    Promise.race([store.flushRemote(), new Promise((r) => setTimeout(r, 2500))]).finally(() => {
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 3000).unref();
+    });
   });
 }
+/* صلابة للعمل المتواصل ٢٤/٧:
+   - تنظيف أكواد التحقق المنتهية كل ١٠ دقائق (لا تراكم في الذاكرة)
+   - حفظ دوري كل ٥ دقائق كشبكة أمان فوق الحفظ الفوري بعد كل تعديل
+   - خطأ غير متوقع يُسجَّل ولا يُسقط السيرفر */
+setInterval(() => store.pruneCodes(), 10 * 60 * 1000).unref();
+setInterval(() => store.flushSync(), 5 * 60 * 1000).unref();
 
-process.on('unhandledRejection', (err) => log('unhandledRejection:', err?.message || err));
-process.on('uncaughtException', (err) => log('uncaughtException:', err?.stack || err?.message || err));
-
-export { server, app, iceServers };
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e?.message || e));
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', err?.stack || err);
+  store.flushSync();
+});
