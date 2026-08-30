@@ -229,6 +229,16 @@ CREATE TABLE IF NOT EXISTS push_queue (
   created_at INTEGER NOT NULL
 );
 
+-- phone <-> Telegram chat links used to deliver OTP codes. A user sends his
+-- phone number to the bot once; every verification code for that phone is
+-- then delivered to the linked chat.
+CREATE TABLE IF NOT EXISTS telegram_links (
+  phone      TEXT PRIMARY KEY,
+  chat_id    INTEGER NOT NULL,
+  username   TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_participants_user ON participants(user_id);
@@ -236,6 +246,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at
 CREATE INDEX IF NOT EXISTS idx_contacts_hash ON contacts(phone_hash);
 CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_links_chat ON telegram_links(chat_id);
 `;
 
 exec(SCHEMA);

@@ -211,6 +211,22 @@ textarea {
   padding: 14px;
   font-size: 13px;
 }
+
+/* warning shown when the Telegram OTP bot is enabled but nothing is linked yet */
+.tg-banner {
+  display: block;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #ffc10766;
+  background: #ffc10714;
+  color: #ffc107;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.tg-banner.hidden {
+  display: none;
+}
 .demo-list {
   display: flex;
   flex-wrap: wrap;

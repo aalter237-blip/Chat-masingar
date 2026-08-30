@@ -157,6 +157,12 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                                     code = dev
                                     "وضع تجريبي: كود التحقق $dev"
                                 }
+                                res.optString("channel") == "telegram" && res.optBoolean("delivered", false) ->
+                                    "تم إرسال كود التحقق عبر تلجرام — افتح تلجرام وستجد الرسالة من البوت"
+                                res.optString("channel") == "telegram" -> {
+                                    val bot = res.optString("botUsername").ifBlank { "بوت تلجرام" }
+                                    "لم يصل الكود: افتح بوت تلجرام $bot وأرسل رقمك (مرة واحدة) ثم أعد طلب الكود"
+                                }
                                 res.optBoolean("delivered", false) ->
                                     "تم إرسال كود التحقق برسالة SMS إلى رقمك"
                                 else ->

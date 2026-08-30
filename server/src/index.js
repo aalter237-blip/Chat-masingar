@@ -15,6 +15,7 @@ import apiRouter from './api.js';
 import { attachWebSocket } from './ws.js';
 import { seed } from './seed.js';
 import { iceServers } from './ice.js';
+import { start as startTelegramBot, stop as stopTelegramBot } from './telegram.js';
 
 const app = express();
 app.set('trust proxy', true);
@@ -87,6 +88,10 @@ server.listen(config.port, config.host, () => {
   log(`Web   : http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}/`);
   log(`DB    : ${config.dbPath}`);
   log(`SMS   : provider=${config.smsProvider}${config.smsProvider === 'none' ? ' (codes are returned by the API)' : ''}`);
+  if (config.telegramBotToken) {
+    startTelegramBot();
+    log(`OTP   : telegram bot${config.telegramBotUsername ? ' @' + config.telegramBotUsername : ''} — users send their phone number to the bot once, codes arrive there as Telegram messages`);
+  }
   if (config.smsProvider === 'textbee') {
     if (!config.textbeeApiKey) log('SMS   : WARNING textbee is selected but TEXTBEE_API_KEY is empty -> no SMS will be sent');
     else log(`SMS   : textbee device=${config.textbeeDeviceId || '(account default)'} base=${config.textbeeBaseUrl}`);
@@ -100,6 +105,7 @@ server.listen(config.port, config.host, () => {
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     log(`shutting down (${sig})`);
+    stopTelegramBot();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();
   });

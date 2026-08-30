@@ -578,6 +578,49 @@ export function clearOtp(phone) {
   run('DELETE FROM otps WHERE phone = ?', phone);
 }
 
+/* -------------------------- telegram links -------------------------- */
+
+/**
+ * Link a phone number to a Telegram chat. A user who sends his phone number
+ * to the OTP bot gets every future verification code in that chat.
+ * Re-linking a phone replaces the previous chat (last one wins).
+ */
+export function saveTelegramLink(phone, chatId, username = '') {
+  run(
+    `INSERT INTO telegram_links (phone, chat_id, username, created_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET
+       chat_id = excluded.chat_id,
+       username = excluded.username,
+       created_at = excluded.created_at`,
+    phone,
+    chatId,
+    username,
+    now()
+  );
+}
+
+export function getTelegramLink(phone) {
+  return get('SELECT * FROM telegram_links WHERE phone = ?', phone);
+}
+
+export function findTelegramLinkByChat(chatId) {
+  return get('SELECT * FROM telegram_links WHERE chat_id = ?', chatId);
+}
+
+export function listTelegramLinks() {
+  return all('SELECT * FROM telegram_links ORDER BY created_at');
+}
+
+export function countTelegramLinks() {
+  const r = get('SELECT COUNT(*) AS n FROM telegram_links');
+  return r ? Number(r.n) : 0;
+}
+
+export function deleteTelegramLink(phone) {
+  run('DELETE FROM telegram_links WHERE phone = ?', phone);
+}
+
 /* ----------------------------- sessions ------------------------------ */
 
 export function createSession(userId, refreshToken, expires, device = '') {

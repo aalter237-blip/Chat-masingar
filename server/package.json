@@ -10,12 +10,15 @@
     "dev": "node --watch src/index.js",
     "seed": "node src/seed.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "compression": "^1.7.5",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.1",
+    "pino": "^10.3.1",
     "ws": "^8.18.0"
   },
   "optionalDependencies": {

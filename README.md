@@ -137,52 +137,33 @@ TURN_HOST=turn.example.com
 ```
 السيرفر يولّد بيانات دخول مؤقتة (HMAC) لكل مستخدم عبر `/api/ice`، فلا تُكشف أسرار TURN أبداً.
 
-### إرسال رسائل SMS / واتساب (كود التحقق)
-- `SMS_PROVIDER=whatsapp` → **رسالة واتساب عبر Meta Cloud API الرسمية**: بدون QR، وبدون عملية محلية، وبدون شريحة/جوال. يحتاج معرف رقم هاتف أعمال + توكن دائم + قالب OTP معتمد. **هذا هو الخيار الموصى به إن لم تصلك رسائل SMS.**
+### إرسال كود التحقق عبر بوت تلجرام (الموصى به — مجاني وبدون SMS)
+
+أفضل وأسهل طريقة لإيصال رموز التحقق: **بوت تلجرام** عبر واجهة Bot API الرسمية —
+يعمل في كل الدول، بلا أرصدة SMS، بلا ربط QR، وبلا أي بروتوكولات غير رسمية.
+
+```bash
+# 1) أنشئ البوت مرة واحدة: افتح @BotFather في تلجرام ← /newbot ← انسخ التوكن
+# 2) ضعه في إعدادات السيرفر (.env / docker compose):
+SMS_PROVIDER=telegram
+TELEGRAM_BOT_TOKEN=1234567890:AAH...          # من @BotFather
+TELEGRAM_BOT_USERNAME=masingar_otp_bot        # اسم البوت بدون @ (يظهر في التطبيق)
+# 3) أرسل اسم البوت للمستخدمين: يفتحونه مرة واحدة، يضغطون Start، ويرسلون أرقامهم.
+```
+
+- الربط (رقم الهاتف ← محادثة التلجرام) يُحفظ في قاعدة البيانات ويبقى بعد إعادة التشغيل.
+- البوت **إرسال فقط** للرموز: لا يقرأ ولا يخزّن رسائل أخرى؛ المستخدم يلغي الربط بأمر `/unlink`.
+- إذا تعذّر تلجرام (رقم غير مربوط / البوت متوقف) ينتقل الإرسال تلقائياً إلى
+  مزوّد SMS المضبوط (إن وُجد) ثم يُطبع الكود في سجل السيرفر — طلب الدخول لا يعلق أبداً.
+- يمكن تغيير نص الرسالة: `TELEGRAM_OTP_TEXT=ماسنجر: كود التحقق هو ${code}`.
+- صفحة متابعة: `https://your-domain/telegram` تعرض حالة البوت والأرقام المرتبطة.
+
+### إرسال رسائل SMS (كود التحقق) — خيار بديل
 - `SMS_PROVIDER=textbee` → **رسالة SMS حقيقية عبر [textbee.dev](https://textbee.dev)**: جوالك الأندرويد يعمل كبوابة إرسال، والرسالة تخرج من شريحتك (بدون اشتراك شهري).
 - `SMS_PROVIDER=twilio` → يحتاج `TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM`.
 - `SMS_PROVIDER=http` → يستدعي ويب‌هوك: `POST {to, code, app}`.
 - `SMS_PROVIDER=console` → يُطبع في سجل السيرفر (لا يصل للمستخدم).
 - `SMS_PROVIDER=none` → الكود يُعاد في الاستجابة — **للتطوير فقط**: أي شخص يستطيع فتح أي حساب بمعرفة رقمه.
-
-### WhatsApp (Meta Cloud API) — بدون QR
-
-الإعداد في ٣ خطوات بعد انشاء حساب [Meta Business](https://business.facebook.com) وتفعيل [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api):
-
-```bash
-# 1) توكن دائم: من Business Settings > System Users > New System User
-#    (صلاحية whatsapp_business_messaging + business_management) ثم Generate Token.
-#    استخدم التوكن الدائم، لا التوكن المؤقت من API Explorer.
-
-# 2) WHATSAPP_PHONE_NUMBER_ID: من WhatsApp Manager > API Setup (أو عبر Graph API).
-
-# 3) قالب OTP معتمد (Meta يمنع رسائل الأعمال الأولى بدون قالب):
-#    WhatsApp Manager > Message Templates > Create
-#    الاسم: masingar_otp   اللغة: Arabic   النوع: Authentication (أو Utility)
-#    نص القالب يحتاج متغير: "کود التحقق هو {{1}}" ثم اضغط Submit.
-#    بعد الموافقة، لا تحتاج تعديل أي كود.
-```
-
-ثم ضع في `deploy/.env` (أو `server/.env` مع systemd) وأعد التشغيل:
-
-```bash
-SMS_PROVIDER=whatsapp
-WHATSAPP_PHONE_NUMBER_ID=123456789012345
-WHATSAPP_ACCESS_TOKEN=EAAG...long-permanent-token
-WHATSAPP_TEMPLATE_NAME=masingar_otp
-WHATSAPP_TEMPLATE_LANGUAGE=ar
-
-# أعد التشغيل
-cd server && npm install && sudo systemctl restart masingar
-```
-
-السيرفر يرسل الكود عبر `POST /<version>/<PHONE_NUMBER_ID>/messages` برسالة template تحتوي الكود كأول متغير. لا توجد أي واجهة QR، ولا أي عملية محلية يجب إبقاؤها شغّالة.
-
-تحقق من الإعداد:
-```bash
-curl -s https://your-domain/api/auth/whatsapp/status
-# {"ok":true,"provider":"whatsapp","configured":true,...}
-```
 
 **إعداد TextBee** (المزوّد الافتراضي — يعمل مباشرة بدون إعداد):
 المفتاح ومعرّف الجوال مضمّنان كقيم افتراضية في `server/src/config.js`، فأي نسخة من السيرفر
@@ -210,7 +191,8 @@ TEXTBEE_DEVICE_ID=6a92...        # معرّف الجوال المسجّل كبو
 - صفحة الدخول **لا تُظهر الأرقام التجريبية** إلا إذا كان السيرفر في وضع تجريبي
   (`SMS_PROVIDER=none`) — تُعلمها نقطة `/api/health` بحقل `demo`.
 - أي رقم شخصي جديد يسجّل نفسه تلقائياً: طلب كود → `POST /api/auth/otp/request` →
-  استلام رسالة SMS → `POST /api/auth/otp/verify` بالكود والاسم → يُنشأ الحساب.
+  استلام كود عبر **تلجرام** (أو SMS إن لم يُفعّل البوت) → `POST /api/auth/otp/verify`
+  بالكود والاسم → يُنشأ الحساب.
 - الكود **لا يُعاد في الاستجابة** أبداً إلا في وضع التطوير (`SMS_PROVIDER=none`).
 
 لتنظيف سيرفرك الحالي من الحسابات التجريبية (إن لم يكن لديك مستخدمون حقيقيون بعد):

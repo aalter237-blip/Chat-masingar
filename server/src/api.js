@@ -8,6 +8,7 @@ import { log, now, normalizePhone, phoneHash, sanitizeText, clampInt, RateLimite
 import * as store from './store.js';
 import * as hub from './hub.js';
 import { checkOtp, issueSession, sendOtp, verifyToken } from './auth.js';
+import * as telegram from './telegram.js';
 import { iceServers } from './ice.js';
 import { pushMessage } from './push.js';
 
@@ -49,40 +50,26 @@ router.get('/health', (_req, res) =>
     time: now(),
     users: store.userCount(),
     online: hub.onlineUsers().length,
-    /** how verification codes leave the box: none | console | textbee | twilio | http | whatsapp */
+    /** how verification codes leave the box: none | console | telegram | textbee | twilio | http */
     sms: config.smsProvider,
-    /**
-     * For SMS_PROVIDER=whatsapp this tells the caller whether the Meta Cloud API
-     * credentials are actually set, and whether a template + language is named.
-     * Kept out of the provider name so the OTP provisioning can explain itself.
-     */
-    whatsappConfigured:
-      config.smsProvider !== 'whatsapp' ||
-      Boolean(config.whatsappPhoneNumberId && config.whatsappAccessToken && config.whatsappTemplateName),
     /**
      * `true` only on a throwaway box (no SMS gateway): the server then hands
      * the code back with the API. Clients show the demo shortcuts for this.
      */
     demo: config.demoMode,
+    /** Telegram OTP bot status (enabled / linked users / masked phones). */
+    telegram: telegram.summary(),
   })
 );
 
-/* ------------------------------- auth -------------------------------- */
+/* --------------------------- telegram admin ------------------------- */
+/**
+ * Public status of the Telegram OTP bot (no token needed - it exposes no
+ * secrets, only state and masked phone numbers).
+ */
+router.get('/telegram/status', (_req, res) => ok(res, telegram.summary()));
 
-router.get('/auth/whatsapp/status', (_req, res) => {
-  const configured =
-    config.smsProvider === 'whatsapp' &&
-    Boolean(config.whatsappPhoneNumberId && config.whatsappAccessToken);
-  const sameTemplate = Boolean(config.whatsappTemplateName);
-  return ok(res, {
-    provider: config.smsProvider,
-    configured,
-    phoneNumberIdSet: Boolean(config.whatsappPhoneNumberId),
-    accessTokenSet: Boolean(config.whatsappAccessToken),
-    templateSet: sameTemplate,
-    language: config.whatsappTemplateLanguage,
-  });
-});
+/* ------------------------------- auth -------------------------------- */
 
 router.post('/auth/otp/request', async (req, res) => {
   const phone = normalizePhone(req.body?.phone);
@@ -90,24 +77,27 @@ router.post('/auth/otp/request', async (req, res) => {
   const limit = otpLimiter.check(phone);
   if (!limit.ok) return fail(res, 429, 'rate_limited', `حاول بعد ${limit.retryAfter} ثانية`);
 
-  if (
-    config.smsProvider === 'whatsapp' &&
-    (!config.whatsappPhoneNumberId || !config.whatsappAccessToken)
-  ) {
-    return fail(res, 503, 'provider_not_configured',
-      'إرسال واتساب غير مُفعّل: اضبط WHATSAPP_PHONE_NUMBER_ID و WHATSAPP_ACCESS_TOKEN');
-  }
-
-  const { code, expires, delivered, provider } = await sendOtp(phone);
+  const { code, expires, delivered, provider, channel, error } = await sendOtp(phone);
   const isNew = !store.getUserByPhone(phone);
+  const telegramLink = config.telegramBotToken ? store.getTelegramLink(phone) : null;
   return ok(res, {
     phone,
     expiresIn: Math.floor((expires - now()) / 1000),
     isNew,
     delivered,
     provider,
-    // development / demo convenience: the code is returned when no SMS gateway is configured
-    devCode: config.smsProvider === 'none' ? code : undefined,
+    /** how the code was actually sent: telegram | textbee | twilio | http | console */
+    channel,
+    /** delivery error detail (present only when nothing could be delivered) */
+    error,
+    /** Telegram OTP bot info (present when TELEGRAM_BOT_TOKEN is set). */
+    botUsername: config.telegramBotToken ? telegram.botName() : undefined,
+    /** true when this phone is already linked to a Telegram chat. */
+    telegramLinked: config.telegramBotToken ? !!telegramLink : undefined,
+    // development / demo convenience: the code is returned when no SMS gateway is
+    // configured, or when the delivery fell back to the server log (console) in a
+    // non-production environment — the code is printed there anyway.
+    devCode: config.smsProvider === 'none' || (channel === 'console' && config.env !== 'production') ? code : undefined,
   });
 });
 
