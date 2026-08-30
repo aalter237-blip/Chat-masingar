@@ -56,6 +56,13 @@ gradle :app:assembleRelease
 
 ## 4) النشر على سيرفر
 
+> 🚀 **الأسهل — ضغطة واحدة (مجاني وبلا بطاقة):** اضغط الزر وسجّل بحساب GitHub:
+>
+> [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/aalter237-blip/Chat-masingar)
+>
+> سيقرأ Render ملف `render.yaml` تلقائياً — فقط عبّئ رمز الانضمام عند الطلب.
+> ثم فعّل «منع النوم» (خطوة ٣ في [`docs/FREE-HOSTING.md`](docs/FREE-HOSTING.md)) ليعمل ٢٤/٧ فعلياً.
+
 الأسهل — Docker:
 
 ```bash

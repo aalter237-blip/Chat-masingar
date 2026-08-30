@@ -1,0 +1,26 @@
+# ماسنجر لايت — مخطط النشر على Render
+# انقر زر "Deploy to Render" في README وسيقرأ Render هذا الملف تلقائياً:
+# لا أوامر ولا إعدادات يدوية — فقط تعبئة رمز الانضمام عند الطلب.
+
+services:
+  - type: web
+    name: masingar-lite
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: node server/src/index.js
+    healthCheckPath: /api/circle
+    envVars:
+      - key: APP_NAME
+        value: ماسنجر لايت
+      - key: MAX_MEMBERS
+        value: "5"
+      # يُطلب منك عند النشر (اختر رقماً سرياً من ٤ خانات — وزّعه على دائرتك فقط)
+      - key: JOIN_CODE
+        sync: false
+      # اختياري لحماية الرسائل من مسح قرص الخطة المجانية ( docs/FREE-HOSTING.md )
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
