@@ -15,6 +15,9 @@
 > 🚀 **جاهز للإنتاج لفريق صغير (≈5 مستخدمين، مجانًا بالكامل):** اتبع
 > [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — رموز الدخول من سجل السيرفر،
 > ترحيل مكالمات مجاني تلقائي، توقيع إصدار حقيقي، وإشعارات FCM اختيارية.
+>
+> 🛡️ **قبل فتح الخدمة للآخرين** راجع [`docs/GO-LIVE.md`](docs/GO-LIVE.md) —
+> تحذير الأمان الإلزامي + قائمة فحص الإطلاق.
 
 ---
 
@@ -339,6 +342,7 @@ node test/run-all.mjs
 node test/verify-crypto.py        # 47 فحصاً: X25519/HKDF مقابل RFC 7748 و RFC 5869 و Node/OpenSSL
 node test/e2ee-web.mjs            # 13 فحصاً لمحرّك التشفير في المتصفح
 node test/e2ee-cross.mjs          # 13 فحصاً: الويب ↔ أندرويد يفتحان رسائل بعضهما
+node test/data-continuity.mjs     # 12 فحصاً: الجلسات والبيانات تبقى بعد إعادة تشغيل السيرفر
 cd server && node test/e2e.mjs    # 43 فحصاً: REST + WebSocket + الخلفية + التنبيهات
 node test/e2ee-live.mjs           # 12 فحصاً ضد سيرفر حقيقي: تشفير، ملفات، مجموعات، خلفية، تنبيهات
 node test/web-two-clients.mjs     # 20 فحصاً: **عميلان ويب حقيقيان** يتبادلان رسائل مشفّرة وخلفية وتنبيهات

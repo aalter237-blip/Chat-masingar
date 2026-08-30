@@ -1,5 +1,5 @@
 /* Masingar service worker - offline shell + basic push fallback. */
-const CACHE = 'masingar-v2';
+const CACHE = 'masingar-v3';
 const SHELL = ['./', './index.html', './css/style.css', './js/app.js', './js/api.js', './js/rtc.js', './js/i18n.js', './js/crypto.js', './manifest.webmanifest', './icons/icon-192.png'];
 
 self.addEventListener('install', (event) => {
