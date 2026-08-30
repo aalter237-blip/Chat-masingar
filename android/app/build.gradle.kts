@@ -27,8 +27,9 @@ android {
         versionCode = 3
         versionName = "2.0.0"
 
-        // عنوان السيرفر — اضبطه في android/local.properties
-        buildConfigField("String", "SERVER_URL", "\"${prop("SERVER_URL", "http://10.0.2.2:3000")}\"")
+        // عنوان السيرفر — الافتراضي هو نشر Bonto، ويمكن تغييره داخل التطبيق
+        // أو ضبطه في android/local.properties عند البناء المحلي
+        buildConfigField("String", "SERVER_URL", "\"${prop("SERVER_URL", "https://chatmassage.bonto.run")}\"")
     }
 
     signingConfigs {
