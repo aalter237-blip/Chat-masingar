@@ -2,30 +2,54 @@ package io.masingar.chat
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputType
+import android.view.Gravity
+import android.view.View
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 
 /**
  * ماسنجر لايت — غلاف WebView مصغّر حول تطبيق الويب.
  *
- * كل شيء (واجهة، دردشة، منشورات) يعمل داخل الـ WebView ويتحدث فوراً من
- * السيرفر بدون تحديث التطبيق، وحجم الـ APK يبقى بضع مئات الكيلوبايت.
+ * عنوان السيرفر قابل للتغيير من داخل التطبيق نفسه (بدون إعادة بناء APK):
+ * - عند أول تشغيل إذا كان العنوان الافتراضي خاصاً بالمحاكي تظهر نافذة الإدخال
+ * - وعند فشل الاتصال تظهر شاشة عربية فيها «إعادة المحاولة» و«تغيير العنوان»
  */
 class MainActivity : Activity() {
 
     private lateinit var web: WebView
+    private lateinit var prefs: SharedPreferences
     private var filePicker: ValueCallback<Array<Uri>>? = null
+
+    /** عنوان السيرفر الحالي: المحفوظ في الجهاز أو الافتراضي من البناء. */
+    private fun serverUrl(): String {
+        val base = prefs.getString(KEY_SERVER, null) ?: BuildConfig.SERVER_URL
+        return base.trim().trimEnd('/')
+    }
+
+    private fun isLocalHost(url: String): Boolean {
+        val host = runCatching { Uri.parse(url).host }.getOrNull() ?: return false
+        return host == "10.0.2.2" || host == "127.0.0.1" || host == "localhost"
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
 
         web = WebView(this)
         web.settings.apply {
@@ -39,12 +63,17 @@ class MainActivity : Activity() {
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val target = Uri.parse(request.url.toString())
-                val serverHost = Uri.parse(BuildConfig.SERVER_URL).host ?: return false
+                val serverHost = runCatching { Uri.parse(serverUrl()).host }.getOrNull() ?: return false
                 // روابط التطبيق تبقى داخلياً، وأي رابط خارجي يفتح في المتصفح
                 return if (target.host == serverHost) false else {
-                    startActivity(Intent(Intent.ACTION_VIEW, request.url))
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, request.url)) }
                     true
                 }
+            }
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                // أخطاء الصفحة الرئيسية فقط (وليس الصور والملفات الفرعية)
+                if (request.isForMainFrame) showErrorScreen()
             }
         }
 
@@ -74,9 +103,86 @@ class MainActivity : Activity() {
         if (savedInstanceState != null) {
             web.restoreState(savedInstanceState)
         } else {
-            web.loadUrl(BuildConfig.SERVER_URL)
+            val url = serverUrl()
+            if (isLocalHost(url)) {
+                // عنوان المحاكي على جهاز حقيقي لا يعمل — اسأل عن العنوان فوراً
+                askServerUrl(firstLaunch = true)
+            } else {
+                web.loadUrl(url)
+            }
         }
     }
+
+    /* ------------------------- شاشة الخطأ العربية ------------------------- */
+
+    private fun showErrorScreen() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(pad, pad * 3, pad, pad * 3)
+        }
+        val title = TextView(this).apply {
+            text = "لا يمكن الوصول إلى السيرفر"
+            textSize = 18f
+            gravity = Gravity.CENTER
+        }
+        val msg = TextView(this).apply {
+            text = "تأكد أن السيرفر يعمل وأن الجوال على نفس الشبكة، أو غيّر عنوان السيرفر.\n\nالعنوان الحالي:\n${serverUrl()}"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setPadding(0, pad, 0, pad * 2)
+        }
+        val retry = Button(this).apply {
+            text = "إعادة المحاولة"
+            setOnClickListener {
+                setContentView(web)
+                web.reload()
+            }
+        }
+        val change = Button(this).apply {
+            text = "تغيير عنوان السيرفر"
+            setOnClickListener { askServerUrl(firstLaunch = false) }
+        }
+        box.addView(title)
+        box.addView(msg)
+        box.addView(retry)
+        box.addView(change)
+        setContentView(box)
+    }
+
+    /* --------------------- إدخال/تغيير عنوان السيرفر --------------------- */
+
+    private fun askServerUrl(firstLaunch: Boolean) {
+        val input = EditText(this).apply {
+            hint = "https://example.com"
+            inputType = InputType.TYPE_TEXT_VARIATION_URI
+            setText(serverUrl())
+            setTextAlignment(View.TEXT_ALIGNMENT_CENTER)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("عنوان سيرفر ماسنجر لايت")
+            .setMessage("اكتب عنوان السيرفر الذي يتصل به التطبيق.\nمثال: https://chat.myfamily.com")
+            .setView(input)
+            .setPositiveButton("حفظ") { _, _ ->
+                val u = input.text.toString().trim().trimEnd('/')
+                if (u.startsWith("http://") || u.startsWith("https://")) {
+                    prefs.edit().putString(KEY_SERVER, u).apply()
+                    setContentView(web)
+                    web.loadUrl(u)
+                    Toast.makeText(this, "تم الحفظ ✓", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "العنوان يجب أن يبدأ بـ http:// أو https://", Toast.LENGTH_LONG).show()
+                    if (firstLaunch) web.loadUrl(serverUrl())
+                }
+            }
+            .setNegativeButton("إلغاء") { _, _ ->
+                if (firstLaunch) web.loadUrl(serverUrl())
+            }
+            .show()
+    }
+
+    /* ------------------------------ دورة الحياة ------------------------------ */
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -103,21 +209,23 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
-        web.onPause()
+        if (this::web.isInitialized) web.onPause()
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
-        web.onResume()
+        if (this::web.isInitialized) web.onResume()
     }
 
     override fun onDestroy() {
-        web.destroy()
+        if (this::web.isInitialized) web.destroy()
         super.onDestroy()
     }
 
     companion object {
+        private const val PREFS = "masingar_cfg"
+        private const val KEY_SERVER = "server_url"
         private const val PICK_IMAGE = 1001
     }
 }
