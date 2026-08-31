@@ -39,7 +39,10 @@ if (fs.existsSync(config.webDir)) {
     express.static(config.webDir, {
       index: 'index.html',
       setHeaders(res, filePath) {
-        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+        // تعطيل التخزين المؤقت للملفات لضمان عرض أحدث إصدار دائماً
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
       },
     })
   );

@@ -1,5 +1,5 @@
 /* ماسنجر لايت — Service Worker مصغّر: يخزّن هيكل التطبيق فقط (أقل من نصف ميجابايت). */
-const CACHE = 'masingar-lite-v1';
+const CACHE = 'masingar-lite-v2';
 const SHELL = [
   './',
   './index.html',
