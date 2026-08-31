@@ -211,6 +211,44 @@ export function renameUser(user, name) {
   save();
 }
 
+/** حذف عضو من الدائرة + منشوراته ورسائله. */
+export function removeUser(user) {
+  // حذف المنشورات والتعليقات الخاصة بالعضو
+  for (const p of db.posts.filter((x) => x.userId === user.id)) {
+    removePost(p);
+  }
+  // حذف التعليقات على منشورات الآخرين
+  for (const p of db.posts) {
+    p.comments = p.comments.filter((c) => c.userId !== user.id);
+  }
+  // حذف رسائل العضو
+  for (const m of db.messages.filter((x) => x.userId === user.id)) {
+    removeMessage(m);
+  }
+  // إزالة العضو من قائمة المقروء
+  for (const m of db.messages) {
+    if (m.readBy) m.readBy = m.readBy.filter((id) => id !== user.id);
+  }
+  // إزالة الإعجابات
+  for (const p of db.posts) {
+    p.likes = p.likes.filter((id) => id !== user.id);
+  }
+  db.users = db.users.filter((u) => u.id !== user.id);
+  save();
+}
+
+/* ---------------------------- البحث ------------------------------ */
+
+export function searchPosts(query) {
+  const q = query.toLowerCase();
+  return db.posts.filter((p) => p.text.toLowerCase().includes(q));
+}
+
+export function searchMessages(query) {
+  const q = query.toLowerCase();
+  return db.messages.filter((m) => m.text.toLowerCase().includes(q));
+}
+
 export function setChatBackground(user, bg) {
   user.chatBackground = bg; // { file, url } or null
   save();

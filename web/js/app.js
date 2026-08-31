@@ -19,6 +19,7 @@ function h(tag, attrs = {}, ...children) {
     if (v === undefined || v === null || v === false) continue;
     if (k === 'class') el.className = v;
     else if (k === 'text') el.textContent = v;
+    else if (k === 'html') el.innerHTML = v;
     else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
     else el.setAttribute(k, v === true ? '' : v);
   }
@@ -214,15 +215,15 @@ async function renderLogin(root) {
 
   root.replaceChildren(
     h('div', { class: 'login-wrap' },
-      h('div', { class: 'login-card' },
-        h('div', { class: 'logo-row' },
-          h('div', { class: 'logo', text: 'م' }),
-          h('div', {},
-            h('h1', { text: circle.name }),
-            h('p', { class: 'tagline', text: 'دائرة خاصة لأقرب أشخاصك' }))),
-        info,
-        step1,
-        step2)),
+      h('div', { class: 'login-header' },
+        h('h1', { text: circle.name }),
+        h('p', { text: 'دائرة خاصة لأقرب أشخاصك' })),
+      h('div', { class: 'login-body' },
+        h('div', { class: 'login-card' },
+          info,
+          step1,
+          step2)),
+      h('div', { class: 'login-footer', text: 'ماسنجر لايت — تواصل خاص بدون غرباء' })),
   );
 }
 
@@ -283,7 +284,7 @@ function renderDefaultHeader() {
         h('div', { class: 'app-title', text: S.circle.name }),
         h('div', { class: 'app-sub', id: 'app-sub', text: `${S.online.size} متصل` }))),
     h('div', { style: 'display:flex;gap:4px;align-items:center' },
-      h('button', { class: 'icon-btn', title: 'البحث', onclick: () => toast('بحث') }, '🔍'),
+      h('button', { class: 'icon-btn', title: 'البحث', onclick: () => openSearch() }, '🔍'),
       h('button', { class: 'icon-btn', title: 'خيارات', onclick: () => switchTab('profile') }, '⋮')));
 }
 
@@ -318,16 +319,28 @@ function navItem(id, icon, label) {
     h('span', { class: 'nav-label', text: label }));
 }
 
+/* ─── زر عائم (FAB) للدردشة ─── */
+function renderFab() {
+  if (S.fabEl) S.fabEl.remove();
+  if (S.tab === 'chatlist') {
+    S.fabEl = h('button', { class: 'fab', onclick: () => switchTab('chat'), title: 'محادثة' }, '💬');
+    document.body.append(S.fabEl);
+  }
+}
+function removeFab() {
+  if (S.fabEl) { S.fabEl.remove(); S.fabEl = null; }
+}
+
 function switchTab(tab) {
   S.tab = tab;
   if (tab === 'chat') { S.unread = 0; updateBadge(); }
   $$('.bottomnav .navitem').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   const main = S.mainEl;
-  if (tab === 'feed') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderFeed(main); }
-  else if (tab === 'chat') { renderChatHeader(); main.style.display = ''; S.navEl.style.display = 'none'; renderChat(main); }
-  else if (tab === 'chatlist') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderChatList(main); }
-  else if (tab === 'members') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderMembers(main); }
-  else if (tab === 'profile') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderProfile(main); }
+  if (tab === 'feed') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; removeFab(); renderFeed(main); }
+  else if (tab === 'chat') { renderChatHeader(); main.style.display = ''; S.navEl.style.display = 'none'; removeFab(); renderChat(main); }
+  else if (tab === 'chatlist') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; renderChatList(main); renderFab(); }
+  else if (tab === 'members') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; removeFab(); renderMembers(main); }
+  else if (tab === 'profile') { renderDefaultHeader(); main.style.display = ''; S.navEl.style.display = ''; removeFab(); renderProfile(main); }
 }
 
 function updateBadge() {
@@ -342,6 +355,91 @@ function logout() {
   session.set('');
   if (S.sock) S.sock.close();
   location.reload();
+}
+
+/* ------------------------------- البحث ------------------------------ */
+
+let searchDebounce = null;
+
+function openSearch() {
+  const input = h('input', {
+    class: 'input search-input', type: 'search',
+    placeholder: 'ابحث في المنشورات والرسائل...',
+    autofocus: true, dir: 'auto',
+  });
+  const results = h('div', { class: 'search-results' });
+  const closeBtn = h('button', { class: 'icon-btn', onclick: closeSearch, text: '✕' });
+
+  const overlay = h('div', { class: 'search-overlay' },
+    h('div', { class: 'search-bar-wrap' },
+      h('button', { class: 'icon-btn', style: 'color:#333', text: '→', onclick: () => closeSearch() }),
+      input,
+      closeBtn),
+    results);
+
+  function closeSearch() {
+    overlay.remove();
+    S.searchOpen = false;
+  }
+  S.searchOpen = true;
+  S.searchOverlay = overlay;
+  S.searchClose = closeSearch;
+
+  input.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    const q = input.value.trim();
+    if (q.length < 2) { results.replaceChildren(h('div', { class: 'search-empty', text: 'اكتب حرفين على الأقل للبحث' })); return; }
+    searchDebounce = setTimeout(async () => {
+      try {
+        const r = await api(`/search?q=${encodeURIComponent(q)}`);
+        results.replaceChildren(...renderSearchResults(r, q));
+      } catch (err) { results.replaceChildren(h('div', { class: 'search-empty', text: err.message })); }
+    }, 350);
+  });
+
+  document.body.append(overlay);
+  setTimeout(() => input.focus(), 50);
+}
+
+function renderSearchResults(r, q) {
+  const total = r.total || 0;
+  if (total === 0) return [h('div', { class: 'search-empty', text: `لا نتائج لـ «${q}»` })];
+
+  const items = [];
+  items.push(h('div', { class: 'search-summary', text: `${total} نتيجة لـ «${q}»` }));
+
+  // المنشورات
+  for (const p of r.posts || []) {
+    const snippet = highlightMatch(p.text, q);
+    items.push(h('div', { class: 'search-item', onclick: () => { S.searchClose(); switchTab('feed'); } },
+      h('div', { class: 'search-item-type', text: '📰 منشور' }),
+      h('div', { class: 'search-item-author', text: p.author.name }),
+      h('div', { class: 'search-item-text', html: snippet }),
+      h('div', { class: 'search-item-time', text: timeAgo(p.createdAt) })));
+  }
+
+  // الرسائل
+  for (const m of r.messages || []) {
+    const snippet = highlightMatch(m.text, q);
+    items.push(h('div', { class: 'search-item', onclick: () => { S.searchClose(); switchTab('chat'); } },
+      h('div', { class: 'search-item-type', text: '💬 رسالة' }),
+      h('div', { class: 'search-item-author', text: m.author.name }),
+      h('div', { class: 'search-item-text', html: snippet }),
+      h('div', { class: 'search-item-time', text: timeAgo(m.createdAt) })));
+  }
+
+  return items;
+}
+
+function highlightMatch(text, q) {
+  if (!text) return '';
+  const safe = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const i = safe.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return safe;
+  const before = safe.slice(Math.max(0, i - 40), i);
+  const match = safe.slice(i, i + q.length);
+  const after = safe.slice(i + q.length, i + q.length + 40);
+  return (i > 40 ? '...' : '') + before + `<mark>${match}</mark>` + after + (i + q.length + 40 < safe.length ? '...' : '');
 }
 
 /* ---------------------------- أحداث لحظية ---------------------------- */
@@ -510,33 +608,112 @@ function contactsStrip() {
   return strip;
 }
 
-/* ─── قائمة المحادثات ─── */
+/* ─── قائمة المحادثات (واتساب: كل شخص كمحادثة) ─── */
+
+/** يحسب عدد الرسائل غير المقروءة لكل عضو */
+function countUnreadPerMember() {
+  const counts = {};
+  for (const m of S.messages) {
+    if (m.author.id === S.me.id) continue;
+    const readBy = m.readBy || [m.author.id];
+    if (!readBy.includes(S.me.id)) {
+      counts[m.author.id] = (counts[m.author.id] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
+/** يجلب آخر رسالة لكل عضو */
+function getLastMessagePerMember() {
+  const lastByAuthor = {};
+  for (const m of S.messages) {
+    lastByAuthor[m.author.id] = m;
+  }
+  return lastByAuthor;
+}
 
 function renderChatList(main) {
+  const onlineCount = S.online.size;
+  const unreadPerMember = countUnreadPerMember();
+  const lastMsgByAuthor = getLastMessagePerMember();
+  const totalUnread = Object.values(unreadPerMember).reduce((a, b) => a + b, 0);
+
+  /* ─── شريط بحث واتساب ─── */
+  const searchInput = h('input', {
+    class: 'wa-search-input', type: 'search',
+    placeholder: 'بحث في المحادثات...',
+    oninput: () => filterChatList(searchInput.value.trim()),
+  });
+  const searchBar = h('div', { class: 'wa-search-bar' }, searchInput);
+
+  /* ─── محادثة الدائرة العامة (في الأعلى) ─── */
   const lastMsg = S.messages.length ? S.messages[S.messages.length - 1] : null;
   const lastTime = lastMsg ? formatChatTime(lastMsg.createdAt) : '';
   const lastText = lastMsg
     ? (lastMsg.author.id === S.me.id ? 'أنت: ' : '') + (lastMsg.text || '📷 صورة')
     : 'ابدأوا المحادثة 👋';
-  const onlineCount = S.online.size;
 
-  const conv = h('div', { class: 'wa-conversation', onclick: () => switchTab('chat') },
+  const groupConv = h('div', { class: 'wa-conversation', onclick: () => switchTab('chat') },
     h('div', { class: 'wa-conv-avatar' },
       avatar(S.circle.name, 50),
       h('span', { class: 'presence ' + (onlineCount > 0 ? 'on' : 'off') })),
     h('div', { class: 'wa-conv-info' },
       h('div', { class: 'wa-conv-top' },
         h('span', { class: 'wa-conv-name', text: S.circle.name }),
-        h('span', { class: 'wa-conv-time' + (S.unread ? ' unread' : ''), text: lastTime })),
+        h('span', { class: 'wa-conv-time' + (totalUnread ? ' unread' : ''), text: lastTime })),
       h('div', { class: 'wa-conv-bottom' },
         h('span', { class: 'wa-conv-msg', text: lastText }),
-        S.unread ? h('span', { class: 'wa-conv-unread', text: S.unread > 9 ? '٩+' : String(S.unread) }) : null)),
+        totalUnread ? h('span', { class: 'wa-conv-unread', text: totalUnread > 99 ? '٩٩+' : String(totalUnread) }) : null)),
     h('div', { style: 'display:flex;flex-direction:column;align-items:center;gap:2px;margin-right:4px' },
       h('span', { class: 'hint', text: `${onlineCount} متصل` })));
 
+  /* ─── أعضاء الدائرة كمحادثات فردية ─── */
+  const otherMembers = S.members.filter((m) => m.id !== S.me.id);
+
+  // ترتيب: المتصلون أولاً، ثم الأوفلاين حسب آخر رسالة
+  const sorted = [...otherMembers].sort((a, b) => {
+    const aOnline = S.online.has(a.id) ? 1 : 0;
+    const bOnline = S.online.has(b.id) ? 1 : 0;
+    if (aOnline !== bOnline) return bOnline - aOnline;
+    const aLast = lastMsgByAuthor[a.id]?.createdAt || 0;
+    const bLast = lastMsgByAuthor[b.id]?.createdAt || 0;
+    return bLast - aLast;
+  });
+
+  const memberRows = sorted.map((m) => {
+    const online = S.online.has(m.id);
+    const lastM = lastMsgByAuthor[m.id];
+    const lastMTime = lastM ? formatChatTime(lastM.createdAt) : '';
+    const lastMText = lastM
+      ? (lastM.author.id === S.me.id ? 'أنت: ' : '') + (lastM.text || (lastM.photo ? '📷 صورة' : ''))
+      : 'لا رسائل بعد';
+    const unread = unreadPerMember[m.id] || 0;
+
+    return h('div', { class: 'wa-conversation', onclick: () => switchTab('chat') },
+      h('div', { class: 'wa-conv-avatar' },
+        avatar(m.name, 50),
+        h('span', { class: 'presence ' + (online ? 'on' : 'off') })),
+      h('div', { class: 'wa-conv-info' },
+        h('div', { class: 'wa-conv-top' },
+          h('span', { class: 'wa-conv-name', text: m.id === S.me.id ? 'أنت' : m.name }),
+          h('span', { class: 'wa-conv-time' + (unread ? ' unread' : ''), text: lastMTime })),
+        h('div', { class: 'wa-conv-bottom' },
+          h('span', { class: 'wa-conv-msg', text: lastMText }),
+          unread ? h('span', { class: 'wa-conv-unread', text: unread > 99 ? '٩٩+' : String(unread) }) : null)),
+      h('div', { style: 'display:flex;flex-direction:column;align-items:center;gap:2px;margin-right:4px' },
+        h('span', { class: 'hint', text: online ? '🟢' : '' })))
+    );
+  });
+
+  const chatlistItems = h('div', { class: 'wa-chat-list', id: 'chatlist-items' },
+    groupConv,
+    ...memberRows,
+  );
+
   main.replaceChildren(
     contactsStrip(),
-    h('div', { class: 'wa-chat-list' }, conv),
+    searchBar,
+    chatlistItems,
     S.posts.length ? h('div', { class: 'wa-conversation', onclick: () => switchTab('feed') },
       h('div', { class: 'wa-conv-avatar' }, avatar('📰', 50)),
       h('div', { class: 'wa-conv-info' },
@@ -552,6 +729,63 @@ function renderChatList(main) {
         h('div', { class: 'wa-conv-bottom' },
           h('span', { class: 'wa-conv-msg', text: `${S.members.length} / ${S.circle.total} — ${onlineCount} متصل` })))))
   );
+}
+
+function filterChatList(q) {
+  const items = $('#chatlist-items');
+  if (!items) return;
+  if (!q) {
+    renderChatList(S.mainEl);
+    return;
+  }
+  // فلطة الأعضاء والرسائل حسب الاسم أو النص
+  const ql = q.toLowerCase();
+  const otherMembers = S.members.filter((m) => m.id !== S.me.id);
+  const matchedMembers = otherMembers.filter((m) => (m.name || '').toLowerCase().includes(ql));
+  const lastMsgByAuthor = getLastMessagePerMember();
+  const unreadPerMember = countUnreadPerMember();
+
+  if (!matchedMembers.length && !S.messages.some((m) => (m.text || '').toLowerCase().includes(ql))) {
+    items.replaceChildren(h('div', { class: 'empty', text: `لا نتائج لـ «${q}»` }));
+    return;
+  }
+
+  const rows = [];
+  // عرض الأعضاء المطابقين
+  for (const m of matchedMembers) {
+    const online = S.online.has(m.id);
+    const lastM = lastMsgByAuthor[m.id];
+    const lastMTime = lastM ? formatChatTime(lastM.createdAt) : '';
+    const lastMText = lastM
+      ? (lastM.author.id === S.me.id ? 'أنت: ' : '') + (lastM.text || (lastM.photo ? '📷 صورة' : ''))
+      : 'لا رسائل بعد';
+    const unread = unreadPerMember[m.id] || 0;
+    rows.push(h('div', { class: 'wa-conversation', onclick: () => switchTab('chat') },
+      h('div', { class: 'wa-conv-avatar' },
+        avatar(m.name, 50),
+        h('span', { class: 'presence ' + (online ? 'on' : 'off') })),
+      h('div', { class: 'wa-conv-info' },
+        h('div', { class: 'wa-conv-top' },
+          h('span', { class: 'wa-conv-name', html: highlightMatch(m.name, q) }),
+          h('span', { class: 'wa-conv-time' + (unread ? ' unread' : ''), text: lastMTime })),
+        h('div', { class: 'wa-conv-bottom' },
+          h('span', { class: 'wa-conv-msg', text: lastMText }),
+          unread ? h('span', { class: 'wa-conv-unread', text: String(unread) }) : null))));
+  }
+  // عرض الرسائل المطابقة
+  const matchedMsgs = S.messages.filter((m) => (m.text || '').toLowerCase().includes(ql));
+  for (const m of matchedMsgs.slice(0, 10)) {
+    const snippet = (m.text || '').slice(0, 60);
+    rows.push(h('div', { class: 'wa-conversation', onclick: () => switchTab('chat') },
+      h('div', { class: 'wa-conv-avatar' }, avatar(m.author.name, 42)),
+      h('div', { class: 'wa-conv-info' },
+        h('div', { class: 'wa-conv-top' },
+          h('span', { class: 'wa-conv-name', text: m.author.name }),
+          h('span', { class: 'wa-conv-time', text: timeAgo(m.createdAt) })),
+        h('div', { class: 'wa-conv-bottom' },
+          h('span', { class: 'wa-conv-msg', html: highlightMatch(snippet, q) })))));
+  }
+  items.replaceChildren(...rows);
 }
 
 function formatChatTime(ts) {
@@ -893,6 +1127,19 @@ function memberRow(m) {
 
 /* ------------------------------- البروفايل ------------------------------ */
 
+async function leaveCircle() {
+  if (!confirm('هل أنت متأكد من مغادرة الدائرة؟
+
+سيتم حذف جميع منشوراتك ورسائلك نهائياً.')) return;
+  try {
+    await api('/me', { method: 'DELETE' });
+    toast('تم مغادرة الدائرة ✓');
+    session.set('');
+    if (S.sock) S.sock.close();
+    setTimeout(() => location.reload(), 500);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
 function renderProfile(main) {
   const online = S.online.has(S.me.id);
 
@@ -962,6 +1209,11 @@ function renderProfile(main) {
       h('div', { class: 'section-title', text: 'عن التطبيق' }),
       h('p', { class: 'hint', text: 'ماسنجر لايت: تطبيق خفيف جداً لدائرة صغيرة — منشورات ودردشة فقط، بلا بحث عن أشخاص وبلا مساحة تخزين كبيرة.' }),
       installBtn),
+
+    h('div', { class: 'card' },
+      h('div', { class: 'section-title', text: 'إدارة الحساب' }),
+      h('button', { class: 'btn leave-btn block', onclick: leaveCircle, text: '🚪 مغادرة الدائرة' }),
+      h('p', { class: 'hint', style: 'margin-top:8px', text: 'سيتم حذف جميع منشوراتك ورسائلك من الدائرة.' })),
   );
 }
 

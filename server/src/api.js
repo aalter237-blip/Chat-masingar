@@ -12,6 +12,29 @@ import { broadcast, onlineIds } from './realtime.js';
 
 export const api = express.Router();
 
+/* --------------------------- حماية الطلبات --------------------------- */
+
+/** حماية بسيطة في الذاكرة: حد أقصى 10 طلبات تسجيل/تحقق لكل IP في الدقيقة. */
+const rateBuckets = new Map();
+function rateLimit(ip, key, max = 10, windowMs = 60_000) {
+  const now = Date.now();
+  const k = `${ip}:${key}`;
+  let entry = rateBuckets.get(k);
+  if (!entry || now - entry.start > windowMs) {
+    entry = { start: now, count: 0 };
+    rateBuckets.set(k, entry);
+  }
+  entry.count++;
+  return entry.count <= max;
+}
+/* تنظيف دوري لمنع تراكم الذاكرة */
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of rateBuckets) {
+    if (now - v.start > 120_000) rateBuckets.delete(k);
+  }
+}, 60_000).unref?.();
+
 /* --------------------------- أدوات مساعدة --------------------------- */
 
 const cleanText = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -69,6 +92,8 @@ api.get('/circle', (_req, res) => {
 /* ---------------------------- تسجيل الدخول --------------------------- */
 
 api.post('/auth/request', (req, res) => {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  if (!rateLimit(ip, 'auth_request')) return fail(res, 429, 'rate_limit', 'طلبات كثيرة جداً — انتظر قليلاً');
   const phone = normalizePhone(req.body?.phone);
   if (!phone) return fail(res, 400, 'bad_phone', 'أدخل رقم هاتف صحيحاً مع رمز الدولة');
 
@@ -95,6 +120,8 @@ api.post('/auth/request', (req, res) => {
 });
 
 api.post('/auth/verify', (req, res) => {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  if (!rateLimit(ip, 'auth_verify', 15)) return fail(res, 429, 'rate_limit', 'طلبات كثيرة جداً — انتظر قليلاً');
   const phone = normalizePhone(req.body?.phone);
   const code = cleanText(req.body?.code, 10);
   if (!phone) return fail(res, 400, 'bad_phone', 'رقم الهاتف غير صحيح');
@@ -254,6 +281,32 @@ api.post('/messages/:id/read', (req, res) => {
   const readBy = store.markRead(msg, req.user.id);
   broadcast({ type: 'read', id: msg.id, readBy });
   res.json({ ok: true, readBy });
+});
+
+/* ----------------------------- البحث ------------------------------ */
+
+api.get('/search', (req, res) => {
+  const q = cleanText(req.query.q, 200);
+  if (!q || q.length < 2) return fail(res, 400, 'bad_query', 'اكتب حرفين على الأقل للبحث');
+
+  const posts = store.searchPosts(q).map(enrichPost);
+  const messages = store.searchMessages(q).map(enrichMessage);
+
+  // ترتيب حسب الأحدث أولاً
+  posts.sort((a, b) => b.createdAt - a.createdAt);
+  messages.sort((a, b) => b.createdAt - a.createdAt);
+
+  res.json({ ok: true, posts, messages, total: posts.length + messages.length });
+});
+
+/* ------------------------ مغادرة الدائرة ---------------------------- */
+
+api.delete('/me', (req, res) => {
+  const userId = req.user.id;
+  store.removeUser(req.user);
+  broadcast({ type: 'members' });
+  // توجيه العميل لإعادة تحميل شاشة الدخول
+  res.json({ ok: true, message: 'تم مغادرة الدائرة' });
 });
 
 api.post('/typing', (req, res) => {
