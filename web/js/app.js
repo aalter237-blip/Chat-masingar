@@ -90,14 +90,14 @@ async function compressImage(file) {
   }
 }
 
-/* رموز دول مختصرة (قائمة قصيرة عربية + إدخال يدوي) */
+/* رموز دول مختصرة — نص بدون ايموجي لتجنّب مشاكل العرض */
 const COUNTRIES = [
-  ['967', '🇾🇪 اليمن'], ['966', '🇸🇦 السعودية'], ['971', '🇦🇪 الإمارات'], ['968', '🇴🇲 عُمان'],
-  ['974', '🇶🇦 قطر'], ['973', '🇧🇭 البحرين'], ['965', '🇰🇼 الكويت'], ['962', '🇯🇴 الأردن'],
-  ['964', '🇮🇶 العراق'], ['970', '🇵🇸 فلسطين'], ['963', '🇸🇾 سوريا'], ['961', '🇱🇧 لبنان'],
-  ['20', '🇪🇬 مصر'], ['249', '🇸🇩 السودان'], ['213', '🇩🇿 الجزائر'], ['212', '🇲🇦 المغرب'],
-  ['216', '🇹🇳 تونس'], ['218', '🇱🇾 ليبيا'], ['90', '🇹🇷 تركيا'], ['1', '🇺🇸 أمريكا/كندا'],
-  ['44', '🇬🇧 بريطانيا'], ['49', '🇩🇪 ألمانيا'], ['33', '🇫🇷 فرنسا'], ['', '＋ أخرى'],
+  ['967', '+967 اليمن'], ['966', '+966 السعودية'], ['971', '+971 الإمارات'], ['968', '+968 عُمان'],
+  ['974', '+974 قطر'], ['973', '+973 البحرين'], ['965', '+965 الكويت'], ['962', '+962 الأردن'],
+  ['964', '+964 العراق'], ['970', '+970 فلسطين'], ['963', '+963 سوريا'], ['961', '+961 لبنان'],
+  ['20', '+20 مصر'], ['249', '+249 السودان'], ['213', '+213 الجزائر'], ['212', '+212 المغرب'],
+  ['216', '+216 تونس'], ['218', '+218 ليبيا'], ['90', '+90 تركيا'], ['1', '+1 أمريكا/كندا'],
+  ['44', '+44 بريطانيا'], ['49', '+49 ألمانيا'], ['33', '+33 فرنسا'],
 ];
 
 /* ---------------------------- حالة التطبيق ---------------------------- */
@@ -128,8 +128,9 @@ async function renderLogin(root) {
   country.value = '967';
 
   const phone = h('input', {
-    class: 'input', type: 'tel', inputmode: 'tel', autocomplete: 'tel',
+    class: 'input phone-input', type: 'tel', inputmode: 'tel', autocomplete: 'tel',
     placeholder: '7xxxxxxxx', dir: 'ltr',
+    style: 'direction:ltr;text-align:left',
   });
 
   const code = h('input', { class: 'input big', type: 'text', inputmode: 'numeric', maxlength: '6', placeholder: '––––––', dir: 'ltr' });
@@ -193,7 +194,7 @@ async function renderLogin(root) {
     h('div', { class: 'field-label', text: 'رقم هاتفك (مع رمز الدولة)' }),
     h('div', { class: 'phone-row' }, country, phone),
     h('button', { id: 'send-btn', class: 'btn primary block', onclick: requestCode, text: 'إرسال كود التحقق' }),
-    h('p', { class: 'hint', text: 'التطبيق لدائرة خاصة صغيرة فقط — لا بحث ولا غرباء. الدخول برقم الهاتف.' }),
+    h('p', { class: 'hint', text: 'التطبيق لدائرة خاصة صغيرة فقط — الدخول برقم الهاتف.' }),
   );
 
   step2.append(
@@ -203,7 +204,7 @@ async function renderLogin(root) {
     h('div', { class: 'code-box' },
       h('div', { class: 'code-box-title', text: 'كود التحقق الخاص بك' }),
       h('div', { class: 'code-value', id: 'shown-code', dir: 'ltr', text: '······' }),
-      h('div', { class: 'hint', text: 'وضع الدائرة الخاصة: بدون رسائل SMS — انسخ الكود وأدخله.' })),
+      h('div', { class: 'hint', text: 'اختر الكود أدناه وأدخله للمتابعة.' })),
     h('div', { id: 'new-fields', class: 'hidden' },
       h('div', { class: 'field-label', text: 'اسمك' }), name,
       circle.joinCodeRequired ? h('div', { class: 'field-label', text: 'رمز الانضمام' }) : null,
