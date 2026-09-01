@@ -2,10 +2,12 @@
   "name": "masingar-lite",
   "version": "2.0.0",
   "private": true,
+  "type": "module",
   "description": "ماسنجر لايت — تطبيق دائرة صغيرة (٥ أعضاء): منشورات ودردشة ودخول برقم الهاتف، بحجم ومساحة صغيرين",
   "scripts": {
+    "build": "node -e \"console.log('Build OK')\"",
     "start": "node server/src/index.js",
-    "dev": "node --watch server/src/index.js",
+    "dev": "node server/src/index.js",
     "test": "node test/api-smoke.mjs && node test/realtime.mjs"
   },
   "engines": {

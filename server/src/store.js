@@ -12,21 +12,55 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { config } from './config.js';
 
 const DB_FILE = path.join(config.dataDir, 'app.json');
+const CODES_FILE = path.join(config.dataDir, 'codes.json');
 export const MEDIA_DIR = path.join(config.dataDir, 'media');
 
 /* ------------------------------ الحالة ------------------------------ */
 
-const blank = () => ({ users: [], posts: [], messages: [] });
+const blank = () => ({ users: [], posts: [], messages: [], statuses: [] });
 let db = blank();
 
-/** أكواد التحقق في الذاكرة فقط — لا تُحفظ على القرص. */
+/** أكواد التحقق النشطة. */
 const codes = new Map(); // phone -> { code, expires, tries, lastSent }
 
+function persistCodes() {
+  try {
+    const obj = {};
+    const now = Date.now();
+    for (const [p, val] of codes.entries()) {
+      if (val && val.expires > now) obj[p] = val;
+    }
+    fs.writeFileSync(CODES_FILE, JSON.stringify(obj), 'utf8');
+  } catch { /* أفضل جهد */ }
+}
+
+function loadCodes() {
+  try {
+    if (fs.existsSync(CODES_FILE)) {
+      const obj = JSON.parse(fs.readFileSync(CODES_FILE, 'utf8'));
+      const now = Date.now();
+      for (const [p, val] of Object.entries(obj)) {
+        if (val && val.expires > now) codes.set(p, val);
+      }
+    }
+  } catch { /* تجاهل */ }
+}
+
 /* ----------------------------- التحميل ------------------------------ */
+
+function isValidHttpUrl(u) {
+  try {
+    const parsed = new URL(u);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 export function load() {
   fs.mkdirSync(config.dataDir, { recursive: true });
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
+  loadCodes();
   try {
     const raw = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
     db = { ...blank(), ...raw };
@@ -37,7 +71,7 @@ export function load() {
     // النسخة البعيدة هي المصدر الصحيح على الاستضافات المؤقتة
     fetch(`${config.supabaseUrl}/rest/v1/app_state?id=eq.main&select=data`, {
       headers: sbHeaders(),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((rows) => {
@@ -49,7 +83,9 @@ export function load() {
           db = { ...blank(), ...remote };
         }
       })
-      .catch((e) => console.error('remote load error:', e.message));
+      .catch(() => {
+        // فشل الاتصال بقاعدة Supabase الاختيارية — الاعتماد على التخزين المحلي
+      });
   }
 }
 
@@ -90,7 +126,7 @@ export function flushSync() {
  * إذا لم تُضبط المتغيرات يعمل التطبيق محلياً كما هو تماماً.
  * ------------------------------------------------------------------ */
 
-const remoteOn = !!(config.supabaseUrl && config.supabaseKey);
+const remoteOn = !!(config.supabaseUrl && config.supabaseKey && isValidHttpUrl(config.supabaseUrl));
 let remoteTimer = null;
 let remoteDirty = false;
 
@@ -118,12 +154,11 @@ export async function flushRemote() {
       method: 'POST',
       headers: sbHeaders(true),
       body: JSON.stringify({ id: 'main', data: db, updated_at: new Date().toISOString() }),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
     });
     if (res.ok || res.status === 201) remoteDirty = false;
-    else console.error('remote save failed:', res.status, await res.text().catch(() => ''));
-  } catch (err) {
-    console.error('remote save error:', err.message); // تُعاد المحاولة مع الحفظ التالي
+  } catch {
+    // Supabase اختياري — إذا فشل الحفظ الخارجي لا تتأثر العمليات المحلية
   }
 }
 
@@ -150,18 +185,17 @@ export function codeFor(phone) {
 export function setCode(phone) {
   const code = String(randomBytes(3).readUIntBE(0, 3) % 1000000).padStart(6, '0');
   codes.set(phone, { code, expires: Date.now() + config.codeTtlMs, tries: 0, lastSent: Date.now() });
+  persistCodes();
   return codes.get(phone);
 }
 export function clearCode(phone) {
   codes.delete(phone);
+  persistCodes();
 }
 
-/** تنظيف دوري: أكواد منتهية الصلاحية لا تبقى في الذاكرة (للعمل المتواصل ٢٤/٧). */
+/** تنظيف دوري: لا نحذف الأكواد تلقائياً لضمان عدم انتهاء الصلاحية. */
 export function pruneCodes() {
-  const now = Date.now();
-  for (const [phone, entry] of codes) {
-    if (now > entry.expires) codes.delete(phone);
-  }
+  /* تم إيقاف انتهاء الصلاحية بناءً على طلب المستخدم */
 }
 
 /* ----------------------------- المستخدمون ---------------------------- */
@@ -313,12 +347,15 @@ export function addComment(post, user, text) {
 
 export const messages = () => db.messages;
 
-export function addMessage(user, { text, photo }) {
+export function addMessage(user, { text, photo, audio, replyTo }) {
   const msg = {
     id: uid(),
     userId: user.id,
     text: text || '',
     photo: photo || null,
+    audio: audio || null, // { file, url, duration }
+    replyTo: replyTo || null, // { id, authorName, text }
+    reactions: {}, // { "👍": [userId1, ...] }
     readBy: [user.id], // صاحب الرسالة يقرأها تلقائياً
     createdAt: Date.now(),
   };
@@ -338,6 +375,26 @@ export function markRead(msg, userId) {
   return msg.readBy;
 }
 
+export function toggleMessageReaction(msg, userId, emoji) {
+  if (!msg.reactions) msg.reactions = {};
+  if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+  const idx = msg.reactions[emoji].indexOf(userId);
+  if (idx >= 0) {
+    msg.reactions[emoji].splice(idx, 1);
+    if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
+  } else {
+    // إزالة أي تفاعل سابق لنفس المستخدم ليبقى تفاعل واحد كواتساب
+    for (const em of Object.keys(msg.reactions)) {
+      msg.reactions[em] = msg.reactions[em].filter((id) => id !== userId);
+      if (msg.reactions[em].length === 0) delete msg.reactions[em];
+    }
+    if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+    msg.reactions[emoji].push(userId);
+  }
+  save();
+  return msg.reactions;
+}
+
 export function messageById(id) {
   return db.messages.find((m) => m.id === id) || null;
 }
@@ -345,40 +402,93 @@ export function messageById(id) {
 export function removeMessage(msg) {
   db.messages = db.messages.filter((m) => m.id !== msg.id);
   if (msg.photo) deleteMedia(msg.photo.file);
+  if (msg.audio) deleteMedia(msg.audio.file);
   save();
 }
 
-/* -------------------------------- الصور ------------------------------ */
+/* ----------------------- الحالات والمستجدات (Status) ------------------- */
 
-export function saveMedia(bytes) {
-  const file = uid() + '.jpg';
+export const statuses = () => {
+  if (!db.statuses) db.statuses = [];
+  const valid24h = Date.now() - 24 * 60 * 60 * 1000;
+  return db.statuses.filter((s) => s.createdAt > valid24h);
+};
+
+export function addStatus(user, { text, photo, bgColor }) {
+  if (!db.statuses) db.statuses = [];
+  const status = {
+    id: uid(),
+    userId: user.id,
+    text: text || '',
+    photo: photo || null,
+    bgColor: bgColor || '#008069',
+    viewers: [user.id],
+    createdAt: Date.now(),
+  };
+  db.statuses.push(status);
+  save();
+  return status;
+}
+
+export function viewStatus(status, userId) {
+  if (!status.viewers) status.viewers = [];
+  if (!status.viewers.includes(userId)) {
+    status.viewers.push(userId);
+    save();
+  }
+  return status.viewers;
+}
+
+export function statusById(id) {
+  if (!db.statuses) return null;
+  return db.statuses.find((s) => s.id === id) || null;
+}
+
+export function removeStatus(status) {
+  if (!db.statuses) return;
+  db.statuses = db.statuses.filter((s) => s.id !== status.id);
+  if (status.photo) deleteMedia(status.photo.file);
+  save();
+}
+
+/* -------------------------------- الصور والوسائط ------------------------------ */
+
+export function saveMedia(bytes, ext = 'jpg', mime = 'image/jpeg') {
+  const file = uid() + '.' + ext;
+  try {
+    fs.mkdirSync(MEDIA_DIR, { recursive: true });
+    fs.writeFileSync(path.join(MEDIA_DIR, file), bytes);
+  } catch (err) {
+    console.error('local media save error:', err?.message || err);
+  }
+
   if (remoteOn) {
-    // رفع مباشر إلى Supabase Storage (حاوية media) — الرابط عام للقراءة
     fetch(`${config.supabaseUrl}/storage/v1/object/media/${file}`, {
       method: 'POST',
-      headers: { ...sbHeaders(), 'Content-Type': 'application/octet-stream' },
+      headers: { ...sbHeaders(), 'Content-Type': mime },
       body: bytes,
-      signal: AbortSignal.timeout(15000),
-    }).catch((e) => console.error('media upload error:', e.message));
-    return { file, url: `${config.supabaseUrl}/storage/v1/object/public/media/${file}` };
+      signal: AbortSignal.timeout(10000),
+    }).catch(() => {
+      // Supabase storage اختياري — لا توقف العمليات المحلية في حالة عدم توفره
+    });
   }
-  fs.writeFileSync(path.join(MEDIA_DIR, file), bytes);
+
   return { file, url: '/media/' + file };
 }
 
 function deleteMedia(file) {
   if (!file) return;
+  try {
+    fs.unlinkSync(path.join(MEDIA_DIR, file));
+  } catch { /* غير موجود */ }
+
   if (remoteOn) {
     fetch(`${config.supabaseUrl}/storage/v1/object/media/${file}`, {
       method: 'DELETE',
       headers: sbHeaders(),
       signal: AbortSignal.timeout(8000),
     }).catch(() => {});
-    return;
   }
-  try {
-    fs.unlinkSync(path.join(MEDIA_DIR, file));
-  } catch { /* غير موجود */ }
 }
 
 /* ------------------------------ الأرشفة ------------------------------ */

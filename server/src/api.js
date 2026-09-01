@@ -6,7 +6,7 @@
  * التسجيل برمز انضمام (JOIN_CODE) حتى لا يدخل الغرباء.
  */
 import express from 'express';
-import { config, normalizePhone } from './config.js';
+import { config, normalizePhone, toAsciiDigits } from './config.js';
 import * as store from './store.js';
 import { broadcast, onlineIds } from './realtime.js';
 
@@ -54,7 +54,20 @@ function parsePhoto(input) {
     return { ok: false, status: 413, code: 'photo_too_big', message: `الصورة أكبر من ${Math.round(config.maxPhotoBytes / 1024)} كيلوبايت` };
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8)
     return { ok: false, status: 400, code: 'bad_photo', message: 'محتوى الصورة غير صالح' };
-  return { ok: true, photo: store.saveMedia(bytes) };
+  return { ok: true, photo: store.saveMedia(bytes, 'jpg', 'image/jpeg') };
+}
+
+function parseAudio(input, duration = 0) {
+  if (!input) return { ok: true, audio: null };
+  const m = /^data:audio\/(webm|ogg|mp4|wav|aac|mpeg|mp3);base64,([A-Za-z0-9+/=]+)$/.exec(String(input));
+  const rawBase64 = m ? m[2] : (String(input).includes('base64,') ? String(input).split('base64,')[1] : null);
+  if (!rawBase64) return { ok: false, status: 400, code: 'bad_audio', message: 'صيغة الصوت غير صالحة' };
+  const bytes = Buffer.from(rawBase64, 'base64');
+  if (bytes.length < 50) return { ok: false, status: 400, code: 'bad_audio', message: 'التسجيل الصوتي فارغ' };
+  if (bytes.length > 4 * 1024 * 1024)
+    return { ok: false, status: 413, code: 'audio_too_big', message: 'التسجيل الصوتي أكبر من 4 ميجابايت' };
+  const ext = m && m[1] === 'mpeg' ? 'mp3' : (m ? m[1] : 'webm');
+  return { ok: true, audio: { ...store.saveMedia(bytes, ext, `audio/${ext}`), duration: Math.max(1, Math.round(Number(duration) || 1)) } };
 }
 
 function enrichAuthor(userId) {
@@ -73,8 +86,25 @@ const enrichPost = (p) => ({
 });
 
 const enrichMessage = (m) => ({
-  id: m.id, text: m.text, photo: m.photo?.url || null, createdAt: m.createdAt, author: enrichAuthor(m.userId),
+  id: m.id,
+  text: m.text,
+  photo: m.photo?.url || null,
+  audio: m.audio ? { url: m.audio.url, duration: m.audio.duration || 1 } : null,
+  replyTo: m.replyTo || null,
+  reactions: m.reactions || {},
+  createdAt: m.createdAt,
+  author: enrichAuthor(m.userId),
   readBy: m.readBy || [m.userId],
+});
+
+const enrichStatus = (s) => ({
+  id: s.id,
+  text: s.text,
+  photo: s.photo?.url || null,
+  bgColor: s.bgColor || '#008069',
+  viewers: s.viewers || [],
+  createdAt: s.createdAt,
+  author: enrichAuthor(s.userId),
 });
 
 /* ------------------------ معلومات الدائرة (عام) ---------------------- */
@@ -93,7 +123,7 @@ api.get('/circle', (_req, res) => {
 
 api.post('/auth/request', (req, res) => {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-  if (!rateLimit(ip, 'auth_request')) return fail(res, 429, 'rate_limit', 'طلبات كثيرة جداً — انتظر قليلاً');
+  if (!rateLimit(ip, 'auth_request', 60)) return fail(res, 429, 'rate_limit', 'طلبات كثيرة جداً — انتظر قليلاً');
   const phone = normalizePhone(req.body?.phone);
   if (!phone) return fail(res, 400, 'bad_phone', 'أدخل رقم هاتف صحيحاً مع رمز الدولة');
 
@@ -104,8 +134,13 @@ api.post('/auth/request', (req, res) => {
 
   const prev = store.codeFor(phone);
   if (prev && Date.now() - prev.lastSent < config.codeResendMs) {
-    const wait = Math.ceil((config.codeResendMs - (Date.now() - prev.lastSent)) / 1000);
-    return fail(res, 429, 'too_soon', `انتظر ${wait} ثانية قبل طلب كود جديد`);
+    return res.json({
+      ok: true,
+      phone,
+      isMember,
+      seatsLeft: store.seatsLeft(),
+      code: prev.code,
+    });
   }
 
   const entry = store.setCode(phone);
@@ -121,23 +156,21 @@ api.post('/auth/request', (req, res) => {
 
 api.post('/auth/verify', (req, res) => {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-  if (!rateLimit(ip, 'auth_verify', 15)) return fail(res, 429, 'rate_limit', 'طلبات كثيرة جداً — انتظر قليلاً');
+  if (!rateLimit(ip, 'auth_verify', 25)) return fail(res, 429, 'rate_limit', 'طلبات كثيرة جداً — انتظر قليلاً');
   const phone = normalizePhone(req.body?.phone);
-  const code = cleanText(req.body?.code, 10);
+  const code = toAsciiDigits(req.body?.code).replace(/[^0-9]/g, '').slice(0, 10);
   if (!phone) return fail(res, 400, 'bad_phone', 'رقم الهاتف غير صحيح');
 
   const entry = store.codeFor(phone);
-  if (!entry || Date.now() > entry.expires) {
-    store.clearCode(phone);
-    return fail(res, 400, 'code_expired', 'انتهت صلاحية الكود — اطلب كوداً جديداً');
+  if (!entry) {
+    return fail(res, 400, 'bad_code', 'لم يتم العثور على كود — اضغط على زر طلب كود جديد');
   }
-  entry.tries += 1;
+  entry.tries = (entry.tries || 0) + 1;
   if (entry.tries > config.codeMaxTries) {
     store.clearCode(phone);
     return fail(res, 429, 'too_many', 'محاولات كثيرة خاطئة — اطلب كوداً جديداً');
   }
   if (code !== entry.code) return fail(res, 400, 'bad_code', 'الكود غير صحيح');
-  store.clearCode(phone); // الكود للاستخدام مرة واحدة
 
   let user = store.userByPhone(phone);
   let created = false;
@@ -145,7 +178,6 @@ api.post('/auth/verify', (req, res) => {
 
   if (!user) {
     if (store.seatsLeft() <= 0) {
-      store.clearCode(phone);
       return fail(res, 403, 'circle_full', 'الدائرة مكتملة — لا مزيد من الأعضاء');
     }
     if (config.joinCode && cleanText(req.body?.joinCode, 40) !== config.joinCode) {
@@ -160,6 +192,7 @@ api.post('/auth/verify', (req, res) => {
     ({ token } = store.issueToken(user));
   }
 
+  store.clearCode(phone); // مسح الكود فقط بعد نجاح الدخول أو التسجيل
   store.touchUser(user);
   broadcast({ type: 'members' });
 
@@ -187,6 +220,7 @@ api.get('/state', (req, res) => {
     online: onlineIds(),
     posts: store.posts().map(enrichPost),
     messages: store.messages().map(enrichMessage),
+    statuses: store.statuses().map(enrichStatus),
     circle: { name: config.appName, total: config.maxMembers },
   });
 });
@@ -258,12 +292,35 @@ api.delete('/posts/:id', (req, res) => {
 
 api.post('/messages', (req, res) => {
   const text = cleanText(req.body?.text, 1000);
-  const r = parsePhoto(req.body?.photo);
-  if (!r.ok) return fail(res, r.status, r.code, r.message);
-  if (!text && !r.photo) return fail(res, 400, 'empty_message', 'اكتب رسالة أو أرفق صورة');
-  const msg = store.addMessage(req.user, { text, photo: r.photo });
+  const rPhoto = parsePhoto(req.body?.photo);
+  if (!rPhoto.ok) return fail(res, rPhoto.status, rPhoto.code, rPhoto.message);
+  const rAudio = parseAudio(req.body?.audio, req.body?.duration);
+  if (!rAudio.ok) return fail(res, rAudio.status, rAudio.code, rAudio.message);
+
+  if (!text && !rPhoto.photo && !rAudio.audio) return fail(res, 400, 'empty_message', 'اكتب رسالة أو أرفق وسائط');
+
+  let replyTo = null;
+  if (req.body?.replyTo && typeof req.body.replyTo === 'object') {
+    replyTo = {
+      id: String(req.body.replyTo.id || ''),
+      authorName: cleanText(req.body.replyTo.authorName, 40),
+      text: cleanText(req.body.replyTo.text, 100),
+    };
+  }
+
+  const msg = store.addMessage(req.user, { text, photo: rPhoto.photo, audio: rAudio.audio, replyTo });
   broadcast({ type: 'message', message: enrichMessage(msg) });
   res.json({ ok: true, message: enrichMessage(msg) });
+});
+
+api.post('/messages/:id/react', (req, res) => {
+  const msg = store.messageById(req.params.id);
+  if (!msg) return fail(res, 404, 'not_found', 'الرسالة غير موجودة');
+  const emoji = cleanText(req.body?.emoji, 10);
+  if (!emoji) return fail(res, 400, 'bad_emoji', 'حدد إيموجي للتفاعل');
+  const reactions = store.toggleMessageReaction(msg, req.user.id, emoji);
+  broadcast({ type: 'message_reaction', id: msg.id, reactions });
+  res.json({ ok: true, reactions });
 });
 
 api.delete('/messages/:id', (req, res) => {
@@ -281,6 +338,42 @@ api.post('/messages/:id/read', (req, res) => {
   const readBy = store.markRead(msg, req.user.id);
   broadcast({ type: 'read', id: msg.id, readBy });
   res.json({ ok: true, readBy });
+});
+
+/* ----------------------- الحالات والمستجدات (Status) ------------------- */
+
+api.get('/statuses', (_req, res) => {
+  res.json({ ok: true, statuses: store.statuses().map(enrichStatus) });
+});
+
+api.post('/statuses', (req, res) => {
+  const text = cleanText(req.body?.text, 500);
+  const rPhoto = parsePhoto(req.body?.photo);
+  if (!rPhoto.ok) return fail(res, rPhoto.status, rPhoto.code, rPhoto.message);
+  const bgColor = cleanText(req.body?.bgColor, 20) || '#008069';
+
+  if (!text && !rPhoto.photo) return fail(res, 400, 'empty_status', 'اكتب حالة أو أرفق صورة');
+
+  const status = store.addStatus(req.user, { text, photo: rPhoto.photo, bgColor });
+  broadcast({ type: 'status', status: enrichStatus(status) });
+  res.json({ ok: true, status: enrichStatus(status) });
+});
+
+api.post('/statuses/:id/view', (req, res) => {
+  const status = store.statusById(req.params.id);
+  if (!status) return fail(res, 404, 'not_found', 'الحالة غير موجودة');
+  const viewers = store.viewStatus(status, req.user.id);
+  broadcast({ type: 'status_view', id: status.id, viewers });
+  res.json({ ok: true, viewers });
+});
+
+api.delete('/statuses/:id', (req, res) => {
+  const status = store.statusById(req.params.id);
+  if (!status) return fail(res, 404, 'not_found', 'الحالة غير موجودة');
+  if (status.userId !== req.user.id) return fail(res, 403, 'forbidden', 'يمكنك حذف حالتك فقط');
+  store.removeStatus(status);
+  broadcast({ type: 'status_deleted', id: status.id });
+  res.json({ ok: true });
 });
 
 /* ----------------------------- البحث ------------------------------ */

@@ -24,12 +24,8 @@ export const config = {
   /** الحد الأقصى لعدد الأعضاء — التطبيق مخصص لدائرة صغيرة فقط. */
   maxMembers: Math.max(2, int(process.env.MAX_MEMBERS, 5)),
 
-  /**
-   * رمز انضمام اختياري: إذا ضُبط فلن يستطيع أحد التسجيل إلا من يعرفه.
-   * يمنع الغرباء من احتلال مقاعد الدائرة (لأن الكود يظهر داخل التطبيق
-   * في وضع الدائرة الخاصة بدون مزوّد SMS).
-   */
-  joinCode: (process.env.JOIN_CODE || '').trim(),
+  /** لا يوجد رمز انضمام — الدخول والتسجيل برقم الهاتف والاسم مباشرة. */
+  joinCode: '',
 
   /** مجلد البيانات (قاعدة JSON + الصور). */
   dataDir: process.env.DATA_DIR || join(ROOT, 'data'),
@@ -52,15 +48,22 @@ export const config = {
   /** أقصى حجم لصورة واحدة بعد ضغطها في المتصفح. */
   maxPhotoBytes: int(process.env.MAX_PHOTO_KB, 300) * 1024,
 
-  /** مدة صلاحية كود التحقق (دقائق) ومحاولات إدخاله والفاصل بين الطلبات. */
-  codeTtlMs: int(process.env.CODE_TTL_MIN, 10) * 60 * 1000,
-  codeMaxTries: 6,
-  codeResendMs: int(process.env.CODE_RESEND_MS, 25000),
+  /** مدة صلاحية كود التحقق (بدون انتهاء — يبقى الكود صالحاً حتى استخدامه). */
+  codeTtlMs: 365 * 24 * 60 * 60 * 1000, // عام كامل (بدون انتهاء)
+  codeMaxTries: 100, // عدد محاولات كبير لمنع الإغلاق الخاطئ
+  codeResendMs: 2000, // إمكانية إعادة الطلب فوراً
 };
+
+/** تحويل الأرقام العربية والفارسية إلى أرقام إنجليزية قياسية. */
+export function toAsciiDigits(str) {
+  return String(str ?? '')
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776));
+}
 
 /** رقم هاتف موحّد: أرقام فقط (مع رمز الدولة) بين ٧ و١٥ رقماً. */
 export function normalizePhone(raw) {
-  const digits = String(raw || '').replace(/[^0-9]/g, '');
+  const digits = toAsciiDigits(raw).replace(/[^0-9]/g, '');
   if (digits.length < 7 || digits.length > 15) return null;
   return digits;
 }

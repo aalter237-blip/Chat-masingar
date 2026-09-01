@@ -42,24 +42,48 @@ export async function api(path, { method = 'GET', body } = {}) {
  * onAuthLost يُستدعى عندما يرفض السيرفر الجلسة نهائياً (دخول من جهاز آخر)
  * حتى لا تدور حلقة إعادة اتصال بلا نهاية.
  */
-export function connect(onEvent, onStatus, onAuthLost) {
+export function connect(onEventOrOpts, onStatus, onAuthLost) {
+  let onEvent = onEventOrOpts;
+  let onStatusFn = onStatus;
+  let onAuthLostFn = onAuthLost;
+
+  if (typeof onEventOrOpts === 'object' && onEventOrOpts !== null) {
+    onEvent = onEventOrOpts.onEvent;
+    onStatusFn = onEventOrOpts.onConnectChange || onEventOrOpts.onStatus;
+    onAuthLostFn = onEventOrOpts.onAuthLost;
+  }
+
   const token = session.token;
   let ws = null;
   let closed = false;
   let retry = 0;
   let timer = null;
 
+  function notifyStatus(status) {
+    if (typeof onStatusFn === 'function') {
+      try { onStatusFn(status); } catch { /* ignore */ }
+    }
+  }
+
   function open() {
     if (closed) return;
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     ws = new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(token)}`);
-    ws.onopen = () => { retry = 0; onStatus(true); };
-    ws.onmessage = (e) => { try { onEvent(JSON.parse(e.data)); } catch { /* رسالة غير صالحة */ } };
+    ws.onopen = () => { retry = 0; notifyStatus(true); };
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (typeof onEvent === 'function') onEvent(data);
+      } catch { /* رسالة غير صالحة */ }
+    };
     ws.onerror = () => { try { ws.close(); } catch { /* تجاهل */ } };
     ws.onclose = (e) => {
-      onStatus(false);
+      notifyStatus(false);
       if (closed) return;
-      if (e.code === 4001) { onAuthLost && onAuthLost(); return; }
+      if (e.code === 4001) {
+        if (typeof onAuthLostFn === 'function') onAuthLostFn();
+        return;
+      }
       retry += 1;
       timer = setTimeout(open, Math.min(1000 * retry, 10000));
     };
@@ -67,6 +91,13 @@ export function connect(onEvent, onStatus, onAuthLost) {
   open();
 
   return {
+    send(data) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+        return true;
+      }
+      return false;
+    },
     close() { closed = true; clearTimeout(timer); try { ws && ws.close(); } catch { /* سبق إغلاقه */ } },
   };
 }

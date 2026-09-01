@@ -1,0 +1,12 @@
+{
+  "name": "ماسنجر لايت",
+  "description": "تطبيق دائرة صغيرة (٥ أعضاء): منشورات ودردشة ومستجدات بتصميم ومظهر واتساب الرسمي",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

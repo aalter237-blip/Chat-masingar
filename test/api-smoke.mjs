@@ -16,7 +16,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const dataDir = mkdtempSync(join(tmpdir(), 'masingar-lite-'));
 
 const server = spawn(process.execPath, ['server/src/index.js'], {
-  env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DATA_DIR: dataDir, JOIN_CODE: '1234', CODE_RESEND_MS: '400' },
+  env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DATA_DIR: dataDir, JOIN_CODE: '', CODE_RESEND_MS: '400' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 server.stdout.on('data', () => {});
@@ -43,7 +43,7 @@ async function joinAs(phone, name) {
   assert.equal(req.status, 200, `request code for ${phone}`);
   const ver = await call('/api/auth/verify', {
     method: 'POST',
-    body: { phone, code: req.data.code, name, joinCode: '1234' },
+    body: { phone, code: req.data.code, name },
   });
   assert.equal(ver.status, 200, `verify ${phone}`);
   return ver.data.token;
@@ -74,7 +74,7 @@ await test('معلومات الدائرة عامة', async () => {
   const r = await call('/api/circle');
   assert.equal(r.data.total, 5);
   assert.equal(r.data.members, 0);
-  assert.equal(r.data.joinCodeRequired, true);
+  assert.equal(r.data.joinCodeRequired, false);
 });
 
 let ahmed;
@@ -89,14 +89,6 @@ await test('تسجيل أول عضو برقم الهاتف', async () => {
 await test('رقم غير صحيح يُرفض', async () => {
   const r = await call('/api/auth/request', { method: 'POST', body: { phone: '123' } });
   assert.equal(r.status, 400);
-});
-
-await test('رمز انضمام خاطئ يُرفض', async () => {
-  const req = await call('/api/auth/request', { method: 'POST', body: { phone: '967771000005' } });
-  const r = await call('/api/auth/verify', {
-    method: 'POST', body: { phone: '967771000005', code: req.data.code, name: 'سالم', joinCode: 'wrong' },
-  });
-  assert.equal(r.status, 403);
 });
 
 await test('كود خاطئ يُرفض', async () => {

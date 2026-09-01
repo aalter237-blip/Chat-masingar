@@ -23,7 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let server = null;
 function startServer() {
   return spawn(process.execPath, ['server/src/index.js'], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DATA_DIR: dataDir, CODE_RESEND_MS: '50' },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DATA_DIR: dataDir, JOIN_CODE: '', SUPABASE_URL: '', SUPABASE_SERVICE_KEY: '', CODE_RESEND_MS: '50' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 }

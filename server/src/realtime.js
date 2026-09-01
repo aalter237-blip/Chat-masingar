@@ -27,6 +27,31 @@ export function attachWebSocket(server) {
     ws.send(JSON.stringify({ type: 'hello', online: onlineIds() }));
     broadcast({ type: 'presence', id: user.id, online: true });
 
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        if (!msg || typeof msg !== 'object') return;
+
+        // إرفاق هوية المرسل الحقيقية دائماً لمنع التزييف
+        msg.from = user.id;
+        msg.fromName = user.name;
+
+        if (msg.type === 'call_invite' || msg.type === 'webrtc_offer' || msg.type === 'webrtc_answer' || msg.type === 'webrtc_ice' || msg.type === 'call_accept' || msg.type === 'call_reject' || msg.type === 'call_hangup') {
+          if (msg.to && msg.to !== 'circle' && msg.to !== 'all') {
+            // توجيه للطرف المستهدف مباشرة
+            sendToUser(msg.to, msg);
+          } else {
+            // توجيه لجميع أعضاء الدائرة الآخرين
+            broadcastExcept(user.id, msg);
+          }
+        } else if (msg.type === 'typing') {
+          broadcastExcept(user.id, { type: 'typing', id: user.id, name: user.name, isTyping: !!msg.isTyping });
+        }
+      } catch (err) {
+        console.error('WS message parse error:', err);
+      }
+    });
+
     ws.on('close', () => {
       const set = clients.get(user.id);
       if (set) {
@@ -64,4 +89,28 @@ export function broadcast(event) {
       if (ws.readyState === ws.OPEN) ws.send(data);
     }
   }
+}
+
+export function broadcastExcept(exceptUserId, event) {
+  const data = JSON.stringify(event);
+  for (const [userId, set] of clients.entries()) {
+    if (userId === exceptUserId) continue;
+    for (const ws of set) {
+      if (ws.readyState === ws.OPEN) ws.send(data);
+    }
+  }
+}
+
+export function sendToUser(userId, event) {
+  const set = clients.get(userId);
+  if (!set || !set.size) return false;
+  const data = JSON.stringify(event);
+  let sent = false;
+  for (const ws of set) {
+    if (ws.readyState === ws.OPEN) {
+      ws.send(data);
+      sent = true;
+    }
+  }
+  return sent;
 }
