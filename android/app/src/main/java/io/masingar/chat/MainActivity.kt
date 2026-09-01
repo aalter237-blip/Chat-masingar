@@ -1,15 +1,20 @@
 package io.masingar.chat
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.webkit.GeolocationPermissions
+import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -78,6 +83,21 @@ class MainActivity : Activity() {
         }
 
         web.webChromeClient = object : WebChromeClient() {
+            /* إذن الكاميرا والميكروفون لمكالمات WebRTC والتسجيل الصوتي */
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                runOnUiThread {
+                    request?.grant(request.resources)
+                }
+            }
+
+            /* إذن مشاركة الموقع الجغرافي */
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String?,
+                callback: GeolocationPermissions.Callback?
+            ) {
+                callback?.invoke(origin, true, false)
+            }
+
             /* اختيار الصور لرفعها في المنشورات/الدردشة */
             override fun onShowFileChooser(
                 webView: WebView?,
@@ -97,6 +117,8 @@ class MainActivity : Activity() {
                 }
             }
         }
+
+        checkRuntimePermissions()
 
         setContentView(web)
 
@@ -221,6 +243,24 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         if (this::web.isInitialized) web.destroy()
         super.onDestroy()
+    }
+
+    private fun checkRuntimePermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val needed = mutableListOf<String>()
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.RECORD_AUDIO)
+            }
+            if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.CAMERA)
+            }
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+            if (needed.isNotEmpty()) {
+                requestPermissions(needed.toTypedArray(), 1002)
+            }
+        }
     }
 
     companion object {
