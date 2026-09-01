@@ -407,8 +407,35 @@ async function boot(root) {
       if (on) syncState();
     }});
   } catch (err) {
-    if (err.code === 'unauthorized') { session.set(''); location.reload(); }
-    else root.replaceChildren(h('div', { class: 'card empty', text: 'تعذر الاتصال بالخادم. أعد تحديث الصفحة.' }));
+    if (err.code === 'unauthorized' || err.status === 401) {
+      session.set('');
+      location.reload();
+      return;
+    }
+    root.replaceChildren(
+      h('div', { class: 'login-wrap' },
+        h('div', { class: 'login-header' }, h('h1', { text: 'ماسنجر لايت' })),
+        h('div', { class: 'login-body' },
+          h('div', { class: 'card', style: 'text-align:center;padding:24px 16px' },
+            h('div', { style: 'font-size:42px;margin-bottom:12px' }, '📶'),
+            h('div', { style: 'font-size:16px;font-weight:bold;margin-bottom:8px', text: 'تعذر الاتصال بالخادم' }),
+            h('div', { style: 'font-size:13px;color:var(--text-secondary);margin-bottom:20px;line-height:1.6', text: err.message || 'يرجى التحقق من اتصال الإنترنت أو عنوان السيرفر.' }),
+            h('button', {
+              class: 'primary-btn',
+              style: 'margin-bottom:10px;width:100%',
+              text: 'إعادة المحاولة 🔄',
+              onclick: () => { root.innerHTML = ''; boot(root); }
+            }),
+            h('button', {
+              class: 'secondary-btn',
+              style: 'width:100%',
+              text: 'تسجيل الدخول من جديد 🚪',
+              onclick: () => { session.set(''); location.reload(); }
+            })
+          )
+        )
+      )
+    );
   }
 }
 
