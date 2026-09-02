@@ -21,16 +21,29 @@ export async function api(path, { method = 'GET', body } = {}) {
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-  } catch {
+  } catch (netErr) {
     const err = new Error('لا يوجد اتصال بالخادم — تحقق من الإنترنت');
     err.code = 'network';
     throw err;
   }
   let data = {};
-  try { data = await res.json(); } catch { /* رد غير JSON */ }
+  try {
+    data = await res.json();
+  } catch {
+    /* رد غير JSON من الخادم (مثل 502/503/404 من البروكسي) */
+    data = {};
+  }
   if (!res.ok || data.ok === false) {
-    const err = new Error(data.message || 'حدث خطأ غير متوقع');
-    err.code = data.code || 'unknown';
+    let msg = data.message;
+    if (!msg) {
+      if (res.status === 401) msg = 'انتهت صلاحية الجلسة — يرجى تسجيل الدخول مجدداً';
+      else if (res.status === 403) msg = 'غير مصرح بالوصول إلى هذا المورد';
+      else if (res.status === 404) msg = 'المورد المطلوب غير موجود في الخادم';
+      else if (res.status >= 500) msg = 'الخادم قيد التشغيل أو يعالج طلباً آخر — أعد المحاولة';
+      else msg = 'تعذر الاتصال بالخادم (رمز ' + res.status + ')';
+    }
+    const err = new Error(msg);
+    err.code = data.code || (res.status === 401 ? 'unauthorized' : 'unknown');
     err.status = res.status;
     throw err;
   }

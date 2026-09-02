@@ -71,39 +71,40 @@ function parseAudio(input, duration = 0) {
 }
 
 function enrichAuthor(userId) {
-  const u = store.members().find((x) => x.id === userId);
+  if (!userId) return { id: '', name: 'عضو' };
+  const u = store.members().find((x) => x && x.id === userId);
   return { id: userId, name: u ? u.name : 'عضو سابق' };
 }
 
 const enrichPost = (p) => ({
-  id: p.id,
-  text: p.text,
+  id: p.id || '',
+  text: p.text || '',
   photo: p.photo?.url || null,
-  likes: p.likes,
-  comments: p.comments.map((c) => ({ ...c, author: enrichAuthor(c.userId) })),
-  createdAt: p.createdAt,
+  likes: Array.isArray(p.likes) ? p.likes : [],
+  comments: Array.isArray(p.comments) ? p.comments.map((c) => ({ ...c, author: enrichAuthor(c?.userId) })) : [],
+  createdAt: p.createdAt || Date.now(),
   author: enrichAuthor(p.userId),
 });
 
 const enrichMessage = (m) => ({
-  id: m.id,
-  text: m.text,
+  id: m.id || '',
+  text: m.text || '',
   photo: m.photo?.url || null,
   audio: m.audio ? { url: m.audio.url, duration: m.audio.duration || 1 } : null,
   replyTo: m.replyTo || null,
-  reactions: m.reactions || {},
-  createdAt: m.createdAt,
+  reactions: (typeof m.reactions === 'object' && m.reactions !== null) ? m.reactions : {},
+  createdAt: m.createdAt || Date.now(),
   author: enrichAuthor(m.userId),
-  readBy: m.readBy || [m.userId],
+  readBy: Array.isArray(m.readBy) ? m.readBy : [m.userId],
 });
 
 const enrichStatus = (s) => ({
-  id: s.id,
-  text: s.text,
+  id: s.id || '',
+  text: s.text || '',
   photo: s.photo?.url || null,
   bgColor: s.bgColor || '#008069',
-  viewers: s.viewers || [],
-  createdAt: s.createdAt,
+  viewers: Array.isArray(s.viewers) ? s.viewers : [],
+  createdAt: s.createdAt || Date.now(),
   author: enrichAuthor(s.userId),
 });
 

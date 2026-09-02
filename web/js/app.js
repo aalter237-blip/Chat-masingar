@@ -246,7 +246,7 @@ const S = {
   messages: [],
   statuses: [],
   online: new Set(),
-  circle: { name: 'واتساب', total: 5 },
+  circle: { name: 'ماسنجر لايت', total: 5 },
   tab: 'chatlist', // 'chatlist' | 'status' | 'feed' | 'members' | 'profile' | 'chat'
   unread: 0,
   typing: null, // {name, until}
@@ -273,7 +273,7 @@ const S = {
 /* ---------------------------- شاشة الدخول ---------------------------- */
 
 async function renderLogin(root) {
-  let circle = { name: 'واتساب', members: 0, total: 5, joinCodeRequired: false };
+  let circle = { name: 'ماسنجر لايت', members: 0, total: 5, joinCodeRequired: false };
   try { circle = await api('/circle'); } catch { /* لا يوجد اتصال */ }
 
   const country = h('select', { class: 'input code-select' },
@@ -292,7 +292,7 @@ async function renderLogin(root) {
     h('div', { style: 'text-align:center;margin-bottom:20px' },
       h('div', { style: 'width:64px;height:64px;border-radius:50%;background:#25d366;color:#fff;font-size:36px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(37,211,102,0.4);margin-bottom:10px' }, '💬'),
       h('h2', { style: 'margin:0;font-size:21px;font-weight:700;color:var(--text-main)', text: 'أدخل رقم هاتفك' }),
-      h('p', { style: 'margin:6px 0 0;font-size:13.5px;color:var(--text-secondary)', text: 'سيرسل واتساب كود التحقق لإكمال الدخول إلى دائرتك.' })),
+      h('p', { style: 'margin:6px 0 0;font-size:13.5px;color:var(--text-secondary)', text: 'سيرسل كود التحقق لإكمال الدخول إلى دائرتك.' })),
     h('div', { class: 'field-label', text: 'الدولة ورقم الهاتف' }),
     h('div', { class: 'phone-row' }, country, phone),
     circle.joinCodeRequired ? h('div', {}, h('div', { class: 'field-label', text: 'رمز الانضمام' }, joinCodeInput)) : null,
@@ -329,7 +329,7 @@ async function renderLogin(root) {
 
 function renderVerify(root, fullPhone, sampleCode, isMember) {
   const codeInput = h('input', { class: 'input big', maxlength: '6', placeholder: '••••••', type: 'tel', dir: 'ltr' });
-  const nameInput = isMember ? null : h('input', { class: 'input', placeholder: 'اسمك الظاهر في واتساب (مثلاً: أحمد)', maxlength: '30' });
+  const nameInput = isMember ? null : h('input', { class: 'input', placeholder: 'اسمك الظاهر (مثلاً: أحمد)', maxlength: '30' });
   const submitBtn = h('button', { class: 'btn primary block', text: 'تأكيد ودخول' });
 
   const card = h('div', { class: 'login-card' },
@@ -364,14 +364,20 @@ function renderVerify(root, fullPhone, sampleCode, isMember) {
 
   root.replaceChildren(
     h('div', { class: 'login-wrap' },
-      h('div', { class: 'login-header' }, h('h1', { text: 'واتساب' })),
+      h('div', { class: 'login-header' },
+        h('h1', { text: 'ماسنجر لايت' }),
+        h('p', { text: 'تواصل فوري، مشفر وخفيف لدائرتك الخاصة' })),
       h('div', { class: 'login-body' }, card))
   );
 }
 
 /* ------------------------------ إقلاع التطبيق ------------------------------ */
 
-async function boot(root) {
+async function boot(root, retryCount = 0) {
+  if (!session.token) {
+    return renderLogin(root);
+  }
+
   try {
     // تطبيق الوضع الداكن وتفضيلات الخط
     if (localStorage.getItem('wa_theme') === 'dark') document.body.classList.add('dark');
@@ -380,13 +386,18 @@ async function boot(root) {
     else if (savedFont === 'small') document.body.classList.add('font-small');
 
     const st = await api('/state');
+    if (!st || !st.me) {
+      session.set('');
+      return renderLogin(root);
+    }
+
     S.me = st.me;
-    S.members = st.members;
-    S.posts = st.posts;
-    S.messages = st.messages;
+    S.members = st.members || [];
+    S.posts = st.posts || [];
+    S.messages = st.messages || [];
     S.statuses = st.statuses || [];
-    S.online = new Set(st.online);
-    S.circle = st.circle || { name: 'واتساب', total: 5 };
+    S.online = new Set(st.online || []);
+    S.circle = st.circle || { name: 'ماسنجر لايت', total: 5 };
     S.chatBackground = st.me?.chatBackground?.url || null;
 
     // استعادة الرسائل المميزة والمثبتة والبيو
@@ -409,28 +420,36 @@ async function boot(root) {
   } catch (err) {
     if (err.code === 'unauthorized' || err.status === 401) {
       session.set('');
-      location.reload();
+      return renderLogin(root);
+    }
+
+    // محاولة إعادة اتصال تلقائية لمرة واحدة عند بدء التشغيل
+    if (retryCount < 1) {
+      setTimeout(() => boot(root, retryCount + 1), 1000);
       return;
     }
+
     root.replaceChildren(
       h('div', { class: 'login-wrap' },
-        h('div', { class: 'login-header' }, h('h1', { text: 'ماسنجر لايت' })),
+        h('div', { class: 'login-header' },
+          h('h1', { text: 'ماسنجر لايت' }),
+          h('p', { text: 'تواصل فوري، مشفر وخفيف لدائرتك الخاصة' })),
         h('div', { class: 'login-body' },
-          h('div', { class: 'card', style: 'text-align:center;padding:24px 16px' },
-            h('div', { style: 'font-size:42px;margin-bottom:12px' }, '📶'),
-            h('div', { style: 'font-size:16px;font-weight:bold;margin-bottom:8px', text: 'تعذر الاتصال بالخادم' }),
-            h('div', { style: 'font-size:13px;color:var(--text-secondary);margin-bottom:20px;line-height:1.6', text: err.message || 'يرجى التحقق من اتصال الإنترنت أو عنوان السيرفر.' }),
+          h('div', { class: 'login-card', style: 'text-align:center;padding:28px 20px' },
+            h('div', { style: 'font-size:48px;margin-bottom:12px' }, '📶'),
+            h('h2', { style: 'margin:0 0 8px;font-size:20px;font-weight:700;color:var(--text-main)', text: 'تعذر الاتصال بالخادم' }),
+            h('p', { style: 'margin:0 0 20px;font-size:13.5px;color:var(--text-secondary);line-height:1.6', text: err.message || 'يرجى التحقق من اتصال الإنترنت أو خادم التطبيق.' }),
             h('button', {
-              class: 'primary-btn',
-              style: 'margin-bottom:10px;width:100%',
+              class: 'btn primary block',
+              style: 'margin-bottom:12px;width:100%',
               text: 'إعادة المحاولة 🔄',
               onclick: () => { root.innerHTML = ''; boot(root); }
             }),
             h('button', {
-              class: 'secondary-btn',
+              class: 'btn secondary block',
               style: 'width:100%',
               text: 'تسجيل الدخول من جديد 🚪',
-              onclick: () => { session.set(''); location.reload(); }
+              onclick: () => { session.set(''); renderLogin(root); }
             })
           )
         )

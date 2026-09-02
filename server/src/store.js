@@ -30,6 +30,7 @@ function persistCodes() {
     for (const [p, val] of codes.entries()) {
       if (val && val.expires > now) obj[p] = val;
     }
+    fs.mkdirSync(config.dataDir, { recursive: true });
     fs.writeFileSync(CODES_FILE, JSON.stringify(obj), 'utf8');
   } catch { /* أفضل جهد */ }
 }
@@ -63,7 +64,12 @@ export function load() {
   loadCodes();
   try {
     const raw = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    db = { ...blank(), ...raw };
+    db = {
+      users: Array.isArray(raw?.users) ? raw.users : [],
+      posts: Array.isArray(raw?.posts) ? raw.posts : [],
+      messages: Array.isArray(raw?.messages) ? raw.messages : [],
+      statuses: Array.isArray(raw?.statuses) ? raw.statuses : [],
+    };
   } catch {
     db = blank(); // أول تشغيل أو ملف تالف → نبدأ من جديد
   }
@@ -77,10 +83,20 @@ export function load() {
       .then((rows) => {
         const remote = rows?.[0]?.data;
         if (remote && Array.isArray(remote.users) && remote.users.length) {
-          db = { ...blank(), ...remote };
+          db = {
+            users: Array.isArray(remote.users) ? remote.users : [],
+            posts: Array.isArray(remote.posts) ? remote.posts : [],
+            messages: Array.isArray(remote.messages) ? remote.messages : [],
+            statuses: Array.isArray(remote.statuses) ? remote.statuses : [],
+          };
           console.log(`تم تحميل الحالة من Supabase (${db.users.length} أعضاء، ${db.messages.length} رسالة)`);
         } else if (remote) {
-          db = { ...blank(), ...remote };
+          db = {
+            users: Array.isArray(remote.users) ? remote.users : [],
+            posts: Array.isArray(remote.posts) ? remote.posts : [],
+            messages: Array.isArray(remote.messages) ? remote.messages : [],
+            statuses: Array.isArray(remote.statuses) ? remote.statuses : [],
+          };
         }
       })
       .catch(() => {
@@ -200,16 +216,16 @@ export function pruneCodes() {
 
 /* ----------------------------- المستخدمون ---------------------------- */
 
-export const members = () => db.users;
-export const seatsLeft = () => Math.max(0, config.maxMembers - db.users.length);
+export const members = () => (Array.isArray(db?.users) ? db.users : []);
+export const seatsLeft = () => Math.max(0, config.maxMembers - members().length);
 
 export function userByPhone(phone) {
-  return db.users.find((u) => u.phone === phone) || null;
+  return members().find((u) => u && u.phone === phone) || null;
 }
 export function userByToken(token) {
   if (!token) return null;
   const h = hashToken(token);
-  return db.users.find((u) => u.tokenHash === h) || null;
+  return members().find((u) => u && u.tokenHash === h) || null;
 }
 
 export function addUser({ phone, name }) {
@@ -300,7 +316,7 @@ export const publicUser = (u) => ({
 
 /* ------------------------- المنشورات والتعليقات ----------------------- */
 
-export const posts = () => db.posts;
+export const posts = () => (Array.isArray(db?.posts) ? db.posts : []);
 
 export function addPost(user, { text, photo }) {
   const post = {
@@ -345,7 +361,7 @@ export function addComment(post, user, text) {
 
 /* ------------------------------ الدردشة ------------------------------ */
 
-export const messages = () => db.messages;
+export const messages = () => (Array.isArray(db?.messages) ? db.messages : []);
 
 export function addMessage(user, { text, photo, audio, replyTo }) {
   const msg = {
@@ -396,11 +412,11 @@ export function toggleMessageReaction(msg, userId, emoji) {
 }
 
 export function messageById(id) {
-  return db.messages.find((m) => m.id === id) || null;
+  return messages().find((m) => m && m.id === id) || null;
 }
 
 export function removeMessage(msg) {
-  db.messages = db.messages.filter((m) => m.id !== msg.id);
+  db.messages = messages().filter((m) => m && m.id !== msg.id);
   if (msg.photo) deleteMedia(msg.photo.file);
   if (msg.audio) deleteMedia(msg.audio.file);
   save();
@@ -409,9 +425,9 @@ export function removeMessage(msg) {
 /* ----------------------- الحالات والمستجدات (Status) ------------------- */
 
 export const statuses = () => {
-  if (!db.statuses) db.statuses = [];
+  if (!Array.isArray(db?.statuses)) db.statuses = [];
   const valid24h = Date.now() - 24 * 60 * 60 * 1000;
-  return db.statuses.filter((s) => s.createdAt > valid24h);
+  return db.statuses.filter((s) => s && s.createdAt > valid24h);
 };
 
 export function addStatus(user, { text, photo, bgColor }) {
