@@ -1,0 +1,28 @@
+0 verbose cli /data/data/com.termux/files/usr/bin/node /data/data/com.termux/files/usr/lib/node_modules/npm/bin/npm-cli.js
+1 info using npm@11.17.0
+2 info using node@v26.3.1
+3 silly config load:file:/data/data/com.termux/files/usr/lib/node_modules/npm/npmrc
+4 silly config load:file:/storage/emulated/0/Download/sanna-ai/.npmrc
+5 silly config load:file:/data/data/com.termux/files/home/.npmrc
+6 silly config load:file:/data/data/com.termux/files/usr/etc/npmrc
+7 verbose title npm exec cap add android
+8 verbose argv "exec" "--" "cap" "add" "android"
+9 verbose logfile logs-max:10 dir:/data/data/com.termux/files/home/.npm/_logs/2026-08-21T10_10_59_080Z-
+10 verbose logfile /data/data/com.termux/files/home/.npm/_logs/2026-08-21T10_10_59_080Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:827588608 maxSize:206897152 maxEntrySize:103448576
+13 http fetch GET 200 https://registry.npmjs.org/cap 606ms (cache revalidated)
+14 verbose stack Error: could not determine executable to run
+14 verbose stack     at getBinFromManifest (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/libnpmexec/lib/get-bin-from-manifest.js:17:23)
+14 verbose stack     at exec (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/libnpmexec/lib/index.js:219:15)
+14 verbose stack     at async Npm.exec (/data/data/com.termux/files/usr/lib/node_modules/npm/lib/npm.js:193:9)
+14 verbose stack     at async module.exports (/data/data/com.termux/files/usr/lib/node_modules/npm/lib/cli/entry.js:67:5)
+15 verbose pkgid cap@0.2.1
+16 error could not determine executable to run
+17 verbose cwd /storage/emulated/0/Download/sanna-ai
+18 verbose os Linux 6.6.102-android15-8-gfc6ca2efaeea-ab14475363-4k
+19 verbose node v26.3.1
+20 verbose npm  v11.17.0
+21 verbose exit 1
+22 verbose code 1
+23 error A complete log of this run can be found in: /data/data/com.termux/files/home/.npm/_logs/2026-08-21T10_10_59_080Z-debug-0.log
