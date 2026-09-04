@@ -1,0 +1,12 @@
+{
+  "name": "ماسنجر لايت",
+  "description": "ماسنجر لايت — تطبيق تواصل ومحادثات ومكالمات خفيف وسريع",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

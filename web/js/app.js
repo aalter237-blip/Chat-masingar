@@ -27,6 +27,522 @@ function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+/* ----------------------- مكتبة الأيقونات المتجهة (SVG Icons) ----------------------- */
+
+const ICONS = {
+  chat: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+  status: '<circle cx="12" cy="12" r="9" stroke-dasharray="32 10" stroke-linecap="round"/>',
+  feed: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="13" y2="16"/>',
+  members: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  video: '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  mic: '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  'mic-off': '<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  more: '<circle cx="12" cy="5" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="19" r="1.5" fill="currentColor"/>',
+  attachment: '<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  emoji: '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>',
+  location: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  document: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  poll: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun: '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+  bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  'bell-off': '<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><line x1="1" y1="1" x2="23" y2="23"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  'check-double': '<polyline points="18 6 9 15 5 11"/><polyline points="22 10 13 19 11 17"/>',
+  back: '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  'screen-share': '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polyline points="9 9 12 6 15 9"/><line x1="12" y1="6" x2="12" y2="13"/>',
+  'switch-camera': '<path d="M20 7h-3a2 2 0 0 1-2-2V2"/><path d="M9 18a6 6 0 0 1-6-6V9a2 2 0 0 1 2-2h3"/><polyline points="4 3 8 7 4 11"/>',
+  'phone-hangup': '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" transform="rotate(135 12 12)"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  reply: '<polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>',
+  pin: '<path d="M16 3l1 1-4 4 3 8-7-7-4 4-1-1 4-4-7-7 8 3 4-4z"/>',
+  info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'
+};
+
+function icon(name, size = 20, className = '') {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('class', `svg-icon ${className}`.trim());
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.innerHTML = ICONS[name] || ICONS.info;
+  return svg;
+}
+
+/* تنسيق حجم الملفات */
+function formatFileSize(bytes) {
+  if (!bytes || bytes <= 0) return '0 ب';
+  if (bytes < 1024) return `${bytes} ب`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} ك.ب`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} م.ب`;
+}
+
+/* ----------------------- النوافذ التفاعلية والحوارات المخصصة ----------------------- */
+
+/** نافذة تأكيد داخلية آمنة (بديل حديث لـ confirm) */
+function showConfirm(title, message, confirmText = 'تأكيد', cancelText = 'إلغاء', isDanger = false) {
+  return new Promise((resolve) => {
+    const overlay = h('div', { class: 'wa-modal-overlay' });
+    const cancelBtn = h('button', { class: 'btn ghost small', text: cancelText, onclick: () => { overlay.remove(); resolve(false); } });
+    const okBtn = h('button', {
+      class: `btn small ${isDanger ? 'leave-btn' : 'primary'}`,
+      style: isDanger ? 'background:var(--wa-danger);color:#fff;border:none' : '',
+      text: confirmText,
+      onclick: () => { overlay.remove(); resolve(true); }
+    });
+
+    const card = h('div', { class: 'wa-modal-card' },
+      h('div', { class: 'wa-modal-title', text: title }),
+      h('div', { class: 'wa-modal-desc', text: message }),
+      h('div', { class: 'wa-modal-actions' }, cancelBtn, okBtn)
+    );
+
+    overlay.append(card);
+    document.body.append(overlay);
+  });
+}
+
+/** نافذة إدخال نصية آمنة داخلية (بديل حديث لـ prompt) */
+function showPromptModal(title, message, defaultValue = '', placeholder = '', isSecret = false) {
+  return new Promise((resolve) => {
+    const overlay = h('div', { class: 'wa-modal-overlay' });
+    const input = h('input', {
+      class: 'input',
+      type: isSecret ? 'password' : 'text',
+      value: defaultValue,
+      placeholder: placeholder,
+      style: 'margin-top:8px'
+    });
+    const cancelBtn = h('button', { class: 'btn ghost small', text: 'إلغاء', onclick: () => { overlay.remove(); resolve(null); } });
+    const okBtn = h('button', {
+      class: 'btn primary small',
+      text: 'موافق',
+      onclick: () => {
+        const val = input.value;
+        overlay.remove();
+        resolve(val);
+      }
+    });
+
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') okBtn.click(); });
+
+    const card = h('div', { class: 'wa-modal-card' },
+      h('div', { class: 'wa-modal-title', text: title }),
+      h('div', { class: 'wa-modal-desc', text: message }),
+      input,
+      h('div', { class: 'wa-modal-actions' }, cancelBtn, okBtn)
+    );
+
+    overlay.append(card);
+    document.body.append(overlay);
+    setTimeout(() => input.focus(), 100);
+  });
+}
+
+/** نافذة المساعدة وإعادة محاولة منح الأذونات عند رفضها */
+function openPermissionHelpModal(kind) {
+  const titles = {
+    mic: 'إذن الميكروفون مطلوب',
+    camera_mic: 'إذن الكاميرا والميكروفون مطلوب',
+    geo: 'إذن تحديد الموقع الجغرافي',
+    notif: 'إذن تنبيهات وإشعارات الرسائل'
+  };
+  const descs = {
+    mic: 'يحتاج التطبيق إذن الميكروفون لتسجيل وإرسال الرسائل الصوتية وإجراء المكالمات الصوتية.',
+    camera_mic: 'يحتاج التطبيق إذن الكاميرا والميكروفون لبدء مكالمات الفيديو والتواصل المرئي المباشر.',
+    geo: 'يحتاج التطبيق إذن الموقع الجغرافي لمشاركة موقعك الحالي في المحادثة بدقة.',
+    notif: 'يحتاج التطبيق إذن الإشعارات لتنبيهك عند وصول رسائل ومكالمات واردة أثناء تشغيل التطبيق في الخلفية.'
+  };
+
+  const overlay = h('div', { class: 'wa-modal-overlay' });
+  const card = h('div', { class: 'wa-modal-card' },
+    h('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:12px' },
+      icon(kind === 'geo' ? 'location' : kind === 'notif' ? 'bell' : 'shield', 26, 'text-green'),
+      h('div', { class: 'wa-modal-title', style: 'margin:0', text: titles[kind] || 'إذن الجهاز' })),
+    h('div', { class: 'wa-modal-desc', text: descs[kind] || 'يرجى تمكين الإذن لمتابعة هذه الميزة.' }),
+    h('div', { style: 'background:var(--bg-hover);padding:12px;border-radius:8px;margin-bottom:14px;border:1px solid var(--border-line)' },
+      h('div', { style: 'font-weight:600;font-size:13px;margin-bottom:6px', text: '💡 كيفية التفعيل في متصفحك:' }),
+      h('div', { style: 'font-size:12.5px;color:var(--text-secondary);line-height:1.6' },
+        '1. انقر على أيقونة القفل 🔒 أو علامة الأذونات بجانب شريط عنوان الموقع أعلاه.\n2. قم بتغيير حالة الإذن إلى (سماح / Allow).\n3. حدّث الصفحة أو انقر "إعادة المحاولة" بالأسفل.')),
+    h('div', { class: 'wa-modal-actions' },
+      h('button', { class: 'btn ghost small', text: 'إغلاق', onclick: () => overlay.remove() }),
+      h('button', {
+        class: 'btn primary small',
+        text: 'إعادة المحاولة',
+        onclick: async () => {
+          overlay.remove();
+          if (kind === 'mic') {
+            try {
+              const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+              s.getTracks().forEach((t) => t.stop());
+              toast('تم منح إذن الميكروفون بنجاح ✓');
+            } catch { toast('لم يتم منح الإذن بعد، تأكد من إعدادات المتصفح', 'error'); }
+          } else if (kind === 'camera_mic') {
+            try {
+              const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+              s.getTracks().forEach((t) => t.stop());
+              toast('تم منح إذن الكاميرا والميكروفون بنجاح ✓');
+            } catch { toast('لم يتم منح الإذن بعد', 'error'); }
+          } else if (kind === 'geo') {
+            navigator.geolocation.getCurrentPosition(
+              () => toast('تم منح إذن الموقع بنجاح ✓'),
+              () => toast('تعذر الوصول للموقع', 'error')
+            );
+          } else if (kind === 'notif') {
+            if ('Notification' in window) {
+              const p = await Notification.requestPermission();
+              toast(p === 'granted' ? 'تم تفعيل الإشعارات بنجاح ✓' : 'تم الرفض', p === 'granted' ? 'info' : 'error');
+            }
+          }
+        }
+      })
+    )
+  );
+  overlay.append(card);
+  document.body.append(overlay);
+}
+
+/** خيارات توجيه الصورة الملتقطة بالكاميرا السريعة */
+function openPhotoTargetModal(photoDataUrl) {
+  const overlay = h('div', { class: 'wa-modal-overlay' });
+  const card = h('div', { class: 'wa-modal-card' },
+    h('div', { class: 'wa-modal-title', text: '📷 تم التقاط الصورة' }),
+    h('div', { style: 'text-align:center;margin:12px 0' },
+      h('img', { src: photoDataUrl, style: 'max-width:100%;max-height:220px;border-radius:10px;object-fit:cover' })),
+    h('div', { class: 'wa-modal-desc', text: 'أين ترغب في نشر الصورة الملتقطة؟' }),
+    h('div', { style: 'display:flex;flex-direction:column;gap:8px' },
+      h('button', {
+        class: 'btn primary block',
+        onclick: async () => {
+          overlay.remove();
+          try {
+            await api('/messages', { method: 'POST', body: { photo: photoDataUrl } });
+            switchTab('chat');
+            toast('تم إرسال الصورة في الدردشة 📷');
+          } catch (err) { toast(err.message, 'error'); }
+        },
+        text: '💬 إرسال في دردشة الدائرة'
+      }),
+      h('button', {
+        class: 'btn secondary block',
+        onclick: async () => {
+          overlay.remove();
+          try {
+            await api('/status', { method: 'POST', body: { type: 'photo', media: photoDataUrl, text: '' } });
+            switchTab('status');
+            toast('تم نشر الصورة كحالة جديدة ⭕');
+          } catch (err) { toast(err.message, 'error'); }
+        },
+        text: '⭕ نشر كحالة مؤقتة (24 ساعة)'
+      }),
+      h('button', { class: 'btn ghost block small', onclick: () => overlay.remove(), text: 'إلغاء' })
+    )
+  );
+  overlay.append(card);
+  document.body.append(overlay);
+}
+
+/** منتقي الإيموجي الشامل والمنبثق */
+let activeEmojiPicker = null;
+function openEmojiPicker(onSelect, anchorEl) {
+  if (activeEmojiPicker) {
+    activeEmojiPicker.remove();
+    activeEmojiPicker = null;
+    return;
+  }
+
+  const EMOJI_CATEGORIES = [
+    { id: 'faces', icon: '😄', emojis: ['😀','😃','😄','😁','😆','😅','😂','🤣','🥲','🥹','☺️','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😮‍💨','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🫣','🤭','🫢','🫡','🤫','🫠','🤥','😶','😐','😑','😬','🫨','😮','😯','😲','🥱','😴','🤤','😪','😵','😵‍💫','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕'] },
+    { id: 'hands', icon: '👍', emojis: ['👍','👎','👏','🙌','👐','🤲','🤝','👊','✊','🤛','🤜','🤞','✌️','🫰','🤟','🤘','👌','🤌','🤏','👈','👉','👆','👇','☝️','✋','🤚','🖐️','🖖','👋','🤙','🫲','🫱','🫴','🫳','💪','🦾','✍️','🙏','💅','🤳','❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','💖','💗','💓','💞','💕','💟','❣️'] },
+    { id: 'nature', icon: '🌿', emojis: ['🌱','🌿','☘️','🍀','🎍','🪴','🎋','🍃','🍂','🍁','🌾','🌺','🌸','🌼','🌻','🌞','🌝','🌛','🌜','🌙','⭐','🌟','✨','⚡','🔥','💥','☄️','☀️','🌤️','⛅','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌬️','💨','💧','💦','🫧','🌊'] },
+    { id: 'objects', icon: '💡', emojis: ['📱','💻','⌨️','🖥️','🖨️','📷','📸','📹','🎥','📽️','📞','☎️','📟','📠','📺','📻','🎙️','🎚️','🎛️','⏱️','⏲️','⏰','🕰️','⌛','⏳','📡','🔋','🪫','🔌','💡','🔦','🕯️','🧯','🪔','💸','💵','💴','💶','💷','🪙','💰','💳','💎','⚖️','🪜','🧰','🪛','🔧','🔨','⚒️','🛠️','⛏️','🪚','⚙️','🗜️','🧱','⛓️','🧲','🔫','💣','🧨','🪓','🔪','🗡️','⚔️','🛡️','🚬','⚰️','🪦','⚱️','🏺','🔮','📿','🧿','🪬','💈','🧲','🩹','🩺','💊','💉','🩸','🧬','🔬','🔭','📡','🪐'] },
+    { id: 'symbols', icon: '🟢', emojis: ['🟢','🔴','🟡','🟠','🔵','🟣','🟤','⚫','⚪','🟥','🟧','🟨','🟩','🟦','🟪','🟫','⬛','⬜','💯','💢','💬','👁️‍🗨️','🗨️','🗯️','💭','💤','♨️','🛑','🕛','🕧','🕐','🕜','🕑','🕝','🕒','🕞','🕓','🕟','🕔','🕠','🕕','🕡','🕖','🕢','🕗','🕣','🕘','🕤','🕙','🕥','🕚','🕦','✅','☑️','✔️','❌','❎','➕','➖','➗','✖️','❓','❔','❕','❗'] },
+  ];
+
+  let currentCat = 'faces';
+  const container = h('div', { class: 'wa-emoji-picker' });
+
+  const tabBar = h('div', { class: 'emoji-tab-bar' });
+  const grid = h('div', { class: 'emoji-grid' });
+
+  function renderCategory(catId) {
+    currentCat = catId;
+    tabBar.querySelectorAll('.emoji-tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.cat === catId));
+    grid.replaceChildren();
+    const cat = EMOJI_CATEGORIES.find((c) => c.id === catId);
+    if (!cat) return;
+    for (const em of cat.emojis) {
+      grid.append(h('div', {
+        class: 'emoji-cell',
+        text: em,
+        onclick: (e) => {
+          e.stopPropagation();
+          onSelect(em);
+        }
+      }));
+    }
+  }
+
+  for (const cat of EMOJI_CATEGORIES) {
+    const btn = h('button', {
+      class: 'emoji-tab-btn' + (cat.id === currentCat ? ' active' : ''),
+      'data-cat': cat.id,
+      text: cat.icon,
+      title: cat.id,
+      onclick: (e) => { e.stopPropagation(); renderCategory(cat.id); }
+    });
+    tabBar.append(btn);
+  }
+
+  renderCategory('faces');
+  container.append(tabBar, grid);
+
+  if (anchorEl && anchorEl.parentElement) {
+    anchorEl.parentElement.style.position = 'relative';
+    anchorEl.parentElement.append(container);
+  } else {
+    document.body.append(container);
+  }
+
+  activeEmojiPicker = container;
+
+  setTimeout(() => {
+    document.addEventListener('click', function closePicker(e) {
+      if (activeEmojiPicker && !activeEmojiPicker.contains(e.target) && e.target !== anchorEl) {
+        activeEmojiPicker.remove();
+        activeEmojiPicker = null;
+        document.removeEventListener('click', closePicker);
+      }
+    });
+  }, 20);
+}
+
+/** نافذة إنشاء استطلاع رأي تفاعلي في المجموعة */
+function openCreatePollModal() {
+  const overlay = h('div', { class: 'wa-modal-overlay' });
+  const questionInput = h('input', { class: 'input', placeholder: 'اسأل سؤالاً...', maxlength: '200' });
+
+  const optionsContainer = h('div', { style: 'display:flex;flex-direction:column;gap:8px;margin:12px 0' });
+  const optionInputs = [];
+
+  function addOptionRow(val = '') {
+    if (optionInputs.length >= 6) return toast('الحد الأقصى هو 6 خيارات');
+    const idx = optionInputs.length + 1;
+    const inp = h('input', { class: 'input small', placeholder: `الخيار ${idx}`, maxlength: '100', value: val });
+    optionInputs.push(inp);
+    optionsContainer.append(inp);
+  }
+
+  // خيارين افتراضيين
+  addOptionRow();
+  addOptionRow();
+
+  const addMoreBtn = h('button', {
+    class: 'btn ghost small',
+    style: 'align-self:flex-start;display:flex;align-items:center;gap:4px',
+    onclick: () => addOptionRow(),
+    text: '+ إضافة خيار آخر'
+  });
+
+  const submitBtn = h('button', {
+    class: 'btn primary block',
+    text: 'نشر الاستطلاع 📊',
+    onclick: async () => {
+      const q = questionInput.value.trim();
+      if (!q) return toast('يرجى كتابة سؤال الاستطلاع', 'error');
+      const validOpts = optionInputs.map((inp) => inp.value.trim()).filter(Boolean);
+      if (validOpts.length < 2) return toast('أدخل خيارين على الأقل للاستطلاع', 'error');
+
+      submitBtn.disabled = true;
+      try {
+        await api('/messages', {
+          method: 'POST',
+          body: {
+            poll: {
+              question: q,
+              options: validOpts
+            }
+          }
+        });
+        overlay.remove();
+        toast('تم نشر الاستطلاع بنجاح 📊 ✓');
+      } catch (err) {
+        toast(err.message, 'error');
+        submitBtn.disabled = false;
+      }
+    }
+  });
+
+  const card = h('div', { class: 'wa-modal-card' },
+    h('div', { class: 'wa-modal-title', text: '📊 إنشاء استطلاع رأي' }),
+    h('div', { class: 'wa-modal-desc', text: 'أنشئ تصويتاً تفاعلياً لأعضاء الدائرة مع نسب ومؤشرات تصويت فورية.' }),
+    h('div', { class: 'field-label', text: 'سؤال الاستطلاع' }),
+    questionInput,
+    h('div', { class: 'field-label', style: 'margin-top:12px', text: 'خيارات التصويت' }),
+    optionsContainer,
+    addMoreBtn,
+    h('div', { class: 'wa-modal-actions' },
+      h('button', { class: 'btn ghost small', text: 'إلغاء', onclick: () => overlay.remove() }),
+      submitBtn)
+  );
+
+  overlay.append(card);
+  document.body.append(overlay);
+}
+
+/** فحص واختبار أجهزة العتاد والأذونات */
+async function checkDevicePermissions() {
+  const status = { mic: 'prompt', camera: 'prompt', geo: 'prompt', notif: 'prompt' };
+  if (navigator.permissions && navigator.permissions.query) {
+    try { const r = await navigator.permissions.query({ name: 'microphone' }); status.mic = r.state; } catch {}
+    try { const r = await navigator.permissions.query({ name: 'camera' }); status.camera = r.state; } catch {}
+    try { const r = await navigator.permissions.query({ name: 'geolocation' }); status.geo = r.state; } catch {}
+    try { const r = await navigator.permissions.query({ name: 'notifications' }); status.notif = r.state; } catch {}
+  }
+  if ('Notification' in window && status.notif === 'prompt') {
+    status.notif = Notification.permission;
+  }
+  return status;
+}
+
+/** اختبار الكاميرا الحي الفوري */
+async function testCameraLive() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    const overlay = h('div', { class: 'wa-modal-overlay' });
+    const video = h('video', {
+      autoplay: true,
+      playsinline: true,
+      style: 'width:100%;max-height:280px;border-radius:10px;background:#000;object-fit:cover'
+    });
+    video.srcObject = stream;
+
+    const close = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      overlay.remove();
+    };
+
+    const card = h('div', { class: 'wa-modal-card', style: 'text-align:center' },
+      h('div', { class: 'wa-modal-title', text: '📷 فحص الكاميرا المباشر' }),
+      h('div', { class: 'wa-modal-desc', text: 'إذا كنت ترى بث الفيديو أمامك بوضوح، فالكاميرا تعمل بنجاح وبأعلى جودة!' }),
+      video,
+      h('div', { style: 'margin-top:16px;display:flex;justify-content:center' },
+        h('button', { class: 'btn primary small', text: 'تم بنجاح (إغلاق المعاينة)', onclick: close }))
+    );
+
+    overlay.append(card);
+    document.body.append(overlay);
+  } catch (err) {
+    openPermissionHelpModal('camera_mic');
+  }
+}
+
+/** اختبار الميكروفون المباشر وإعادة الاستماع للتسجيل للتأكد من جودة الصوت */
+async function testMicrophoneLive() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const overlay = h('div', { class: 'wa-modal-overlay' });
+    const statusLabel = h('div', { style: 'font-weight:700;font-size:16px;color:var(--wa-danger);margin:14px 0', text: '🔴 جاري التسجيل التجريبي... (تحدث الآن: 3 ثوان)' });
+    const chunks = [];
+    const mr = new MediaRecorder(stream);
+    mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const card = h('div', { class: 'wa-modal-card', style: 'text-align:center' },
+      h('div', { class: 'wa-modal-title', text: '🎙️ فحص واختبار الميكروفون' }),
+      h('div', { class: 'wa-modal-desc', text: 'سيقوم الاختبار بتسجيل صوتك لمدة 3 ثوان وإعادة تشغيله فوراً لتسمع وضوح التسجيل بنفسك.' }),
+      statusLabel,
+      h('div', { style: 'margin-top:16px;display:flex;justify-content:center' },
+        h('button', {
+          class: 'btn ghost small',
+          text: 'إلغاء',
+          onclick: () => {
+            stream.getTracks().forEach((t) => t.stop());
+            overlay.remove();
+          }
+        }))
+    );
+    overlay.append(card);
+    document.body.append(overlay);
+
+    mr.start();
+    let left = 3;
+    const interval = setInterval(() => {
+      left--;
+      if (left > 0) {
+        statusLabel.textContent = `🔴 جاري التسجيل التجريبي... (تحدث الآن: ${left} ثوان)`;
+      } else {
+        clearInterval(interval);
+        mr.stop();
+        stream.getTracks().forEach((t) => t.stop());
+        statusLabel.style.color = 'var(--wa-green)';
+        statusLabel.textContent = '🔊 جاري تشغيل الصوت المسجل الآن...';
+      }
+    }, 1000);
+
+    mr.onstop = () => {
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      audio.play();
+      audio.onended = () => {
+        statusLabel.textContent = '✅ ممتاز! الميكروفون يعمل بنقاء 100%';
+        toast('تم فحص الميكروفون بنجاح ✓');
+      };
+    };
+  } catch (err) {
+    openPermissionHelpModal('mic');
+  }
+}
+
+/** اختبار الموقع الجغرافي */
+function testGeolocationLive() {
+  if (!navigator.geolocation) return toast('الموقع الجغرافي غير مدعوم في متصفحك', 'error');
+  toast('جاري تحديد الإحداثيات...');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude.toFixed(4);
+      const lng = pos.coords.longitude.toFixed(4);
+      const acc = Math.round(pos.coords.accuracy);
+      toast(`تم تحديد موقعك بدقة! (دقة: ±${acc} متر) 📍`);
+    },
+    () => openPermissionHelpModal('geo')
+  );
+}
+
+/** اختبار الإشعارات الفوري */
+async function testNotificationLive() {
+  if (!('Notification' in window)) return toast('الإشعارات غير مدعومة في هذا المتصفح', 'error');
+  try {
+    const p = await Notification.requestPermission();
+    if (p === 'granted') {
+      soundFx.playReceive();
+      new Notification('ماسنجر لايت • فحص الإشعارات', {
+        body: 'نظام الإشعارات وتنبيهات الرسائل يعمل بنجاح وكفاءة تامة!',
+        icon: '/icons/icon-192.png'
+      });
+      toast('تم إرسال إشعار تجريبي بنجاح 🔔 ✓');
+    } else {
+      openPermissionHelpModal('notif');
+    }
+  } catch {
+    openPermissionHelpModal('notif');
+  }
+}
+
 function toast(message, kind = 'info') {
   const el = h('div', { class: 'toast ' + kind, text: message });
   document.body.append(el);
@@ -265,6 +781,10 @@ const S = {
   fontSize: localStorage.getItem('wa_font_size') || 'medium',
   readReceipts: localStorage.getItem('wa_read_receipts') !== 'false',
   enterSend: localStorage.getItem('wa_enter_send') !== 'false',
+  themeAccent: localStorage.getItem('wa_theme_accent') || 'emerald',
+  autoPlayVoice: localStorage.getItem('wa_auto_play_voice') === 'true',
+  vibration: localStorage.getItem('wa_vibration') !== 'false',
+  showTyping: localStorage.getItem('wa_show_typing') !== 'false',
   userBio: 'متوفر 🟢',
   appPin: null,
   activeCall: null,
@@ -298,7 +818,9 @@ async function renderLogin(root) {
     circle.joinCodeRequired ? h('div', {}, h('div', { class: 'field-label', text: 'رمز الانضمام' }, joinCodeInput)) : null,
     h('div', { style: 'margin-top:18px' }, sendBtn),
     h('div', { style: 'text-align:center;margin-top:16px;font-size:12.5px;color:var(--text-muted)' },
-      `الأعضاء المسجلون: ${circle.members} من ${circle.total}`)
+      circle.unlimited || !circle.total
+        ? `الأعضاء المسجلون: ${circle.members}`
+        : `الأعضاء المسجلون: ${circle.members} من ${circle.total}`)
   );
 
   sendBtn.onclick = async () => {
@@ -407,11 +929,16 @@ async function boot(root, retryCount = 0) {
     try {
       S.pinnedMsg = JSON.parse(localStorage.getItem('wa_pinned_msg') || 'null');
     } catch { S.pinnedMsg = null; }
-    S.userBio = localStorage.getItem('wa_bio_' + S.me.id) || 'متوفر 🟢';
+    S.userBio = localStorage.getItem('wa_bio_' + S.me.id) || S.me.bio || 'متوفر 🟢';
     S.appPin = localStorage.getItem('wa_pin_' + S.me.id) || null;
 
+    applyThemeAccent(S.themeAccent);
     setupKeyboardShortcuts();
     drawApp(root);
+
+    if (S.appPin) {
+      showAppLockScreen();
+    }
 
     S.sock = connect({ onEvent: onWsEvent, onConnectChange: (on) => {
       if (S.connEl) S.connEl.classList.toggle('hidden', on);
@@ -520,15 +1047,15 @@ function renderDefaultHeader() {
 
   S.headerEl.replaceChildren(
     h('div', { class: 'brand' },
-      h('div', { class: 'logo-wa', text: '💬' }),
+      h('div', { class: 'logo-wa', style: 'display:inline-flex;align-items:center;justify-content:center' }, icon('chat', 22, 'text-white')),
       h('div', {},
         h('div', { class: 'app-title', text: S.circle.name }),
         h('div', { class: 'app-sub', id: 'app-sub', text: `${S.online.size} متصل الآن` }))),
     h('div', { class: 'topbar-actions' },
-      h('button', { class: 'icon-btn', title: 'مكالمة صوتية للدائرة', onclick: () => startCall('circle', S.circle.name, false) }, '📞'),
-      h('button', { class: 'icon-btn', title: 'الكاميرا', onclick: () => triggerCameraQuick() }, '📷'),
-      h('button', { class: 'icon-btn', title: 'البحث الموحد (Ctrl+K)', onclick: () => openSearch() }, '🔍'),
-      h('button', { class: 'icon-btn', title: 'الخيارات', onclick: toggleMenu }, '⋮'),
+      h('button', { class: 'icon-btn', title: 'مكالمة صوتية للدائرة', onclick: () => startCall('circle', S.circle.name, false) }, icon('phone', 20)),
+      h('button', { class: 'icon-btn', title: 'الكاميرا', onclick: () => triggerCameraQuick() }, icon('camera', 20)),
+      h('button', { class: 'icon-btn', title: 'البحث الموحد (Ctrl+K)', onclick: () => openSearch() }, icon('search', 20)),
+      h('button', { class: 'icon-btn', title: 'الخيارات', onclick: toggleMenu }, icon('more', 20)),
       menu)
   );
 }
@@ -541,19 +1068,19 @@ function renderChatHeader() {
 
   const chatMenu = h('div', { class: 'wa-dropdown-menu hidden', id: 'wa-chat-menu' },
     h('button', { class: 'wa-menu-item', onclick: () => { openStarredMessages(); closeChatMenu(); } },
-      h('span', { class: 'menu-icon', text: '⭐' }),
+      h('span', { class: 'menu-icon' }, icon('star', 18)),
       h('span', { text: 'الرسائل المميزة' })),
     h('button', { class: 'wa-menu-item', onclick: () => { openMediaGallery(); closeChatMenu(); } },
-      h('span', { class: 'menu-icon', text: '🖼️' }),
+      h('span', { class: 'menu-icon' }, icon('image', 18)),
       h('span', { text: 'الوسائط والروابط' })),
     h('button', { class: 'wa-menu-item', onclick: () => { exportChatHistory('txt'); closeChatMenu(); } },
-      h('span', { class: 'menu-icon', text: '📄' }),
+      h('span', { class: 'menu-icon' }, icon('document', 18)),
       h('span', { text: 'تصدير سجل الدردشة' })),
     h('button', { class: 'wa-menu-item', onclick: () => { $('#bg-file-input')?.click(); closeChatMenu(); } },
-      h('span', { class: 'menu-icon', text: '🎨' }),
+      h('span', { class: 'menu-icon' }, icon('settings', 18)),
       h('span', { text: 'خلفية الشاشة' })),
     h('button', { class: 'wa-menu-item', onclick: () => { switchTab('members'); closeChatMenu(); } },
-      h('span', { class: 'menu-icon', text: '👥' }),
+      h('span', { class: 'menu-icon' }, icon('members', 18)),
       h('span', { text: 'معلومات الدائرة' }))
   );
 
@@ -573,34 +1100,34 @@ function renderChatHeader() {
 
   S.headerEl.replaceChildren(
     h('div', { style: 'display:flex;align-items:center;gap:8px;flex:1;min-width:0' },
-      h('button', { class: 'chat-head-back', onclick: () => switchTab('chatlist'), text: '→' }),
+      h('button', { class: 'chat-head-back', onclick: () => switchTab('chatlist'), title: 'رجوع' }, icon('back', 20)),
       h('div', { class: 'wa-conv-avatar' }, avatar(S.circle.name, 38)),
       h('div', { style: 'flex:1;min-width:0' },
         h('div', { class: 'app-title', style: 'font-size:16px', text: S.circle.name }),
         h('div', { class: 'app-sub', id: 'chat-head-count', text: onlineText }))),
     h('div', { class: 'topbar-actions' },
-      h('button', { class: 'icon-btn', title: 'مكالمة مرئية', onclick: () => startCall('circle', S.circle.name, true) }, '📹'),
-      h('button', { class: 'icon-btn', title: 'مكالمة صوتية', onclick: () => startCall('circle', S.circle.name, false) }, '📞'),
-      h('button', { class: 'icon-btn', title: 'البحث في المحادثة', onclick: () => openSearch() }, '🔍'),
-      h('button', { class: 'icon-btn', title: 'خيارات المحادثة', onclick: toggleChatMenu }, '⋮'),
+      h('button', { class: 'icon-btn', title: 'مكالمة مرئية', onclick: () => startCall('circle', S.circle.name, true) }, icon('video', 20)),
+      h('button', { class: 'icon-btn', title: 'مكالمة صوتية', onclick: () => startCall('circle', S.circle.name, false) }, icon('phone', 20)),
+      h('button', { class: 'icon-btn', title: 'البحث في المحادثة', onclick: () => openSearch() }, icon('search', 20)),
+      h('button', { class: 'icon-btn', title: 'خيارات المحادثة', onclick: toggleChatMenu }, icon('more', 20)),
       chatMenu)
   );
 }
 
 function renderNav() {
   S.navEl.replaceChildren(
-    navItem('chatlist', '💬', 'الدردشات'),
-    navItem('status', '⭕', 'المستجدات'),
-    navItem('feed', '📰', 'المنشورات'),
-    navItem('members', '👥', 'المجموعة'),
-    navItem('profile', '⚙️', 'الإعدادات')
+    navItem('chatlist', icon('chat', 22), 'الدردشات'),
+    navItem('status', icon('status', 22), 'المستجدات'),
+    navItem('feed', icon('feed', 22), 'المنشورات'),
+    navItem('members', icon('members', 22), 'المجموعة'),
+    navItem('profile', icon('settings', 22), 'الإعدادات')
   );
 }
 
-function navItem(id, icon, label) {
+function navItem(id, iconEl, label) {
   const badge = h('span', { class: 'badge hidden', 'data-badge': id });
   return h('button', { class: 'navitem', 'data-tab': id, onclick: () => switchTab(id) },
-    h('span', { class: 'nav-icon' }, icon, badge),
+    h('span', { class: 'nav-icon' }, iconEl, badge),
     h('span', { class: 'nav-label', text: label }));
 }
 
@@ -658,7 +1185,7 @@ function switchTab(tab) {
 function renderFab() {
   if (S.fabEl) S.fabEl.remove();
   if (S.tab === 'chatlist') {
-    S.fabEl = h('button', { class: 'fab', onclick: () => switchTab('chat'), title: 'محادثة الدائرة' }, '💬');
+    S.fabEl = h('button', { class: 'fab', onclick: () => switchTab('chat'), title: 'محادثة الدائرة' }, icon('chat', 24, 'text-white'));
     document.body.append(S.fabEl);
   }
 }
@@ -1074,6 +1601,7 @@ function renderChat(main) {
   const replyBanner = h('div', { class: 'reply-preview-bar hidden', id: 'reply-banner' });
   const preview = h('div', { class: 'photo-preview small hidden' });
   const fileInput = h('input', { type: 'file', accept: 'image/*', class: 'hidden' });
+  const docFileInput = h('input', { type: 'file', class: 'hidden' });
 
   fileInput.addEventListener('change', async () => {
     const f = fileInput.files[0];
@@ -1088,13 +1616,45 @@ function renderChat(main) {
     } catch { toast('تعذر تحميل الصورة', 'error'); }
   });
 
+  docFileInput.addEventListener('change', async () => {
+    const f = docFileInput.files[0];
+    docFileInput.value = '';
+    if (!f) return;
+    if (f.size > 15 * 1024 * 1024) return toast('حجم الملف كبير جداً (الحد الأقصى 15 ميجابايت)', 'error');
+    try {
+      toast('جاري قراءة وإرسال المستند...');
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          soundFx.playSend();
+          const r = await api('/messages', {
+            method: 'POST',
+            body: {
+              file: {
+                name: f.name,
+                size: f.size,
+                type: f.type || 'application/octet-stream',
+                data: reader.result
+              },
+              replyTo: S.replyTo
+            }
+          });
+          clearReply();
+          mergeMessage(r.message);
+          toast(`تم إرسال: ${f.name} ✓`);
+        } catch (err) { toast(err.message, 'error'); }
+      };
+      reader.readAsDataURL(f);
+    } catch { toast('تعذر قراءة الملف', 'error'); }
+  });
+
   const input = h('input', { class: 'chat-input', maxlength: '1000', placeholder: 'اكتب رسالة...' });
-  const actionBtn = h('button', { class: 'chat-action-btn', title: 'تسجيل صوتي' }, '🎙️');
+  const actionBtn = h('button', { class: 'chat-action-btn', title: 'تسجيل صوتي' }, icon('mic', 20, 'text-white'));
 
   let typingSent = 0;
   input.addEventListener('input', () => {
     const val = input.value.trim();
-    actionBtn.textContent = val ? '➤' : '🎙️';
+    actionBtn.replaceChildren(icon(val ? 'send' : 'mic', 20, 'text-white'));
     actionBtn.title = val ? 'إرسال' : 'تسجيل صوتي';
 
     const now = Date.now();
@@ -1119,7 +1679,7 @@ function renderChat(main) {
       pendingPhoto = null;
       preview.classList.add('hidden');
       clearReply();
-      actionBtn.textContent = '🎙️';
+      actionBtn.replaceChildren(icon('mic', 20, 'text-white'));
       mergeMessage(r.message);
     } catch (err) { toast(err.message, 'error'); }
   }
@@ -1178,7 +1738,7 @@ function renderChat(main) {
         recTimeLabel.textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
       }, 500);
     } catch {
-      toast('تعذر الوصول إلى الميكروفون', 'error');
+      openPermissionHelpModal('mic');
     }
   }
 
@@ -1191,7 +1751,7 @@ function renderChat(main) {
     recBar.classList.add('hidden');
     inputPill.classList.remove('hidden');
     actionBtn.classList.remove('recording');
-    actionBtn.textContent = '🎙️';
+    actionBtn.replaceChildren(icon('mic', 20, 'text-white'));
   }
 
   function cancelRecording() {
@@ -1203,7 +1763,7 @@ function renderChat(main) {
     recBar.classList.add('hidden');
     inputPill.classList.remove('hidden');
     actionBtn.classList.remove('recording');
-    actionBtn.textContent = '🎙️';
+    actionBtn.replaceChildren(icon('mic', 20, 'text-white'));
     toast('تم إلغاء التسجيل');
   }
 
@@ -1220,16 +1780,17 @@ function renderChat(main) {
   /* قائمة المرفقات المنبثقة */
   let attachOpen = false;
   const attachPopup = h('div', { class: 'wa-attachment-popup hidden' },
-    attachItem('gallery', '🖼️', 'المعرض', () => { fileInput.click(); toggleAttach(); }),
-    attachItem('camera', '📷', 'الكاميرا', () => { fileInput.click(); toggleAttach(); }),
-    attachItem('audio', '🎙️', 'تسجيل صوتي', () => { startRecording(); toggleAttach(); }),
-    attachItem('location', '📍', 'الموقع', () => { shareLocation(); toggleAttach(); }),
-    attachItem('poll', '📊', 'استطلاع', () => { toast('قريباً: استطلاعات الرأي في المجموعة'); toggleAttach(); })
+    attachItem('doc', icon('document', 20), 'مستند/ملف', () => { docFileInput.click(); toggleAttach(); }),
+    attachItem('gallery', icon('image', 20), 'المعرض', () => { fileInput.click(); toggleAttach(); }),
+    attachItem('camera', icon('camera', 20), 'الكاميرا', () => { fileInput.click(); toggleAttach(); }),
+    attachItem('poll', icon('poll', 20), 'استطلاع رأي', () => { openCreatePollModal(); toggleAttach(); }),
+    attachItem('location', icon('location', 20), 'الموقع', () => { shareLocation(); toggleAttach(); }),
+    attachItem('audio', icon('mic', 20), 'تسجيل صوتي', () => { startRecording(); toggleAttach(); })
   );
 
-  function attachItem(type, icon, label, onClick) {
+  function attachItem(type, iconEl, label, onClick) {
     return h('div', { class: 'wa-attach-item', onclick: onClick },
-      h('div', { class: `wa-attach-circle ${type}`, text: icon }),
+      h('div', { class: `wa-attach-circle ${type}` }, iconEl),
       h('span', { class: 'wa-attach-label', text: label }));
   }
 
@@ -1248,13 +1809,42 @@ function renderChat(main) {
         const r = await api('/messages', { method: 'POST', body: { text: locText } });
         mergeMessage(r.message);
       } catch (err) { toast(err.message, 'error'); }
-    }, () => toast('تعذر جلب الموقع الجغرافي', 'error'));
+    }, () => openPermissionHelpModal('geo'));
   }
 
+  const emojiBtn = h('button', {
+    class: 'icon-btn dark-text',
+    style: 'font-size:18px;width:34px;height:34px;padding:4px',
+    title: 'الإيموجي',
+    onclick: (e) => {
+      e.stopPropagation();
+      openEmojiPicker((em) => {
+        input.value += em;
+        input.dispatchEvent(new Event('input'));
+        input.focus();
+      }, emojiBtn);
+    }
+  }, icon('emoji', 20));
+
+  const attachBtn = h('button', {
+    class: 'icon-btn dark-text',
+    style: 'width:34px;height:34px;padding:4px',
+    title: 'إرفاق',
+    onclick: toggleAttach
+  }, icon('attachment', 20));
+
+  const cameraInputBtn = h('button', {
+    class: 'icon-btn dark-text',
+    style: 'width:34px;height:34px;padding:4px',
+    title: 'صورة من الكاميرا',
+    onclick: () => fileInput.click()
+  }, icon('camera', 20));
+
   const inputPill = h('div', { class: 'chat-input-pill' },
-    h('button', { class: 'icon-btn dark-text', style: 'font-size:20px;width:32px;height:32px', onclick: toggleAttach }, '📎'),
+    emojiBtn,
+    attachBtn,
     input,
-    h('button', { class: 'icon-btn dark-text', style: 'font-size:20px;width:32px;height:32px', onclick: () => fileInput.click() }, '📷')
+    cameraInputBtn
   );
 
   const typingEl = h('div', { class: 'typing hidden', id: 'typing' });
@@ -1263,7 +1853,8 @@ function renderChat(main) {
     inputPill,
     recBar,
     actionBtn,
-    fileInput
+    fileInput,
+    docFileInput
   );
 
   /* خلفية المحادثة */
@@ -1467,6 +2058,51 @@ function audioMessagePlayer(audio) {
   return player;
 }
 
+/* رسم بطاقة استطلاع الرأي التفاعلي */
+function renderPollBubble(m) {
+  const poll = m.poll;
+  if (!poll || !Array.isArray(poll.options)) return null;
+  const totalVotes = poll.options.reduce((sum, opt) => sum + (Array.isArray(opt.voters) ? opt.voters.length : 0), 0);
+
+  const optionsContainer = h('div', { class: 'poll-options' });
+  for (const opt of poll.options) {
+    const voters = Array.isArray(opt.voters) ? opt.voters : [];
+    const voteCount = voters.length;
+    const isVotedByMe = S.me && voters.includes(S.me.id);
+    const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+
+    const bar = h('div', { class: 'poll-bar', style: `width:${pct}%` });
+    const checkEl = isVotedByMe ? h('span', { style: 'color:var(--wa-green);font-weight:bold;margin-left:4px' }, '✓') : null;
+
+    const optEl = h('div', {
+      class: 'poll-option-item' + (isVotedByMe ? ' voted' : ''),
+      onclick: async (e) => {
+        e.stopPropagation();
+        try {
+          const res = await api(`/messages/${m.id}/vote`, { method: 'POST', body: { optionId: opt.id } });
+          m.poll = res.poll;
+          const oldBubble = document.getElementById(`msg-bubble-${m.id}`);
+          if (oldBubble && oldBubble.parentElement) {
+            const newRow = chatBubble(m);
+            oldBubble.parentElement.replaceWith(newRow);
+          }
+        } catch (err) { toast(err.message, 'error'); }
+      }
+    },
+      bar,
+      h('div', { class: 'poll-option-content' }, checkEl, h('span', { text: opt.text })),
+      h('div', { class: 'poll-option-meta' }, `${voteCount} (${pct}%)`)
+    );
+    optionsContainer.append(optEl);
+  }
+
+  return h('div', { class: 'bubble-poll' },
+    h('div', { class: 'poll-question', text: poll.question }),
+    optionsContainer,
+    h('div', { class: 'poll-total-votes', text: `إجمالي الأصوات: ${totalVotes} • انقر على أي خيار للتصويت أو التراجع` })
+  );
+}
+
 function chatBubble(m) {
   const mine = m.author.id === S.me.id;
   const reactions = m.reactions || {};
@@ -1509,19 +2145,19 @@ function chatBubble(m) {
 
     msgMenu = h('div', { class: 'wa-dropdown-menu', style: 'position:absolute;top:28px;left:4px;z-index:90;min-width:160px;box-shadow:var(--shadow-lg)' },
       h('button', { class: 'wa-menu-item', onclick: () => { setReply(m); msgMenu.remove(); } },
-        h('span', { class: 'menu-icon', text: '↩️' }),
+        h('span', { class: 'menu-icon' }, icon('reply', 18)),
         h('span', { text: 'رد على الرسالة' })),
       h('button', { class: 'wa-menu-item', onclick: () => { toggleStar(m.id); msgMenu.remove(); } },
-        h('span', { class: 'menu-icon', text: isStarred ? '⭐' : '☆' }),
+        h('span', { class: 'menu-icon' }, icon('star', 18)),
         h('span', { text: isStarred ? 'إزالة النجمة' : 'تمييز بنجمة' })),
       h('button', { class: 'wa-menu-item', onclick: () => { togglePin(m); msgMenu.remove(); } },
-        h('span', { class: 'menu-icon', text: '📌' }),
+        h('span', { class: 'menu-icon' }, icon('pin', 18)),
         h('span', { text: isPinned ? 'إلغاء التثبيت' : 'تثبيت في الأعلى' })),
       m.text ? h('button', { class: 'wa-menu-item', onclick: () => { copyToClipboard(m.text); msgMenu.remove(); } },
-        h('span', { class: 'menu-icon', text: '📋' }),
+        h('span', { class: 'menu-icon' }, icon('copy', 18)),
         h('span', { text: 'نسخ النص' })) : null,
       mine ? h('button', { class: 'wa-menu-item', style: 'color:var(--wa-danger)', onclick: () => { deleteMessage(m.id); msgMenu.remove(); } },
-        h('span', { class: 'menu-icon', text: '🗑️' }),
+        h('span', { class: 'menu-icon' }, icon('trash', 18, 'text-danger')),
         h('span', { text: 'حذف الرسالة' })) : null
     );
 
@@ -1543,20 +2179,40 @@ function chatBubble(m) {
     h('div', { class: 'quote-reply-author', text: m.replyTo.authorName }),
     h('div', { class: 'quote-reply-text', text: m.replyTo.text })) : null;
 
+  // بطاقة المستند / الملف إن وجد
+  const docCard = m.file ? h('a', {
+    class: 'bubble-doc',
+    href: m.file.data,
+    download: m.file.name || 'document',
+    title: 'انقر لتنزيل المستند'
+  },
+    h('div', { class: 'doc-icon-box' }, icon('document', 22)),
+    h('div', { class: 'doc-info' },
+      h('div', { class: 'doc-name', text: m.file.name }),
+      h('div', { class: 'doc-size', text: formatFileSize(m.file.size) })
+    ),
+    h('div', { class: 'doc-dl-btn', title: 'تحميل' }, icon('download', 18))
+  ) : null;
+
+  // بطاقة استطلاع الرأي التفاعلي إن وجد
+  const pollCard = m.poll ? renderPollBubble(m) : null;
+
   const bubbleWrap = h('div', { class: 'chat-bubble ' + (mine ? 'me' : 'them') + (isPinned ? ' is-pinned' : ''), id: `msg-bubble-${m.id}` },
     mine ? null : h('div', { class: 'bubble-author', text: m.author.name }),
     quoteBox,
     m.text ? h('div', { class: 'bubble-text', text: m.text }) : null,
     m.photo ? h('img', { class: 'bubble-photo', src: m.photo, alt: 'صورة', loading: 'lazy', onclick: () => openPhotoLightbox(m.photo) }) : null,
     m.audio ? audioMessagePlayer(m.audio) : null,
+    docCard,
+    pollCard,
     h('div', { class: 'bubble-footer' },
       isStarred ? h('span', { class: 'bubble-star-icon', title: 'مميزة بنجمة' }, '⭐') : null,
       isPinned ? h('span', { title: 'رسالة مثبتة', style: 'font-size:11px' }, '📌') : null,
       h('span', { class: 'bubble-time', text: timeAgo(m.createdAt) }),
       readTick(m)),
     h('div', { style: 'position:absolute;top:4px;left:4px;display:flex;gap:2px' },
-      h('div', { class: 'bubble-actions-trigger', onclick: showReactions, title: 'تفاعل' }, '😊'),
-      h('div', { class: 'bubble-actions-trigger', onclick: showMessageMenu, title: 'خيارات الرسالة' }, '⋮')
+      h('div', { class: 'bubble-actions-trigger', onclick: showReactions, title: 'تفاعل' }, icon('emoji', 16)),
+      h('div', { class: 'bubble-actions-trigger', onclick: showMessageMenu, title: 'خيارات الرسالة' }, icon('more', 16))
     ),
     reactionPills
   );
@@ -1903,7 +2559,8 @@ function communityPostCard(p) {
 /* ------------------------------- الأعضاء ------------------------------- */
 
 function renderMembers(main) {
-  const seatsLeftCount = Math.max(0, S.circle.total - S.members.length);
+  const isUnlimited = S.circle.unlimited || !Number.isFinite(S.circle.total);
+  const seatsLeftCount = isUnlimited ? Infinity : Math.max(0, S.circle.total - S.members.length);
   const rows = h('div', { id: 'member-rows' });
 
   main.replaceChildren(
@@ -1911,10 +2568,13 @@ function renderMembers(main) {
     h('div', { class: 'members-wrap', style: 'padding:12px 14px' },
       h('div', { class: 'card circle-card', style: 'border-radius:10px;text-align:center;padding:18px;background:var(--bg-card);box-shadow:var(--shadow-sm);margin-bottom:12px' },
         h('div', { style: 'font-weight:700;font-size:16px', text: `مجموعة: ${S.circle.name}` }),
-        h('div', { style: 'font-size:36px;font-weight:900;color:var(--wa-green);margin:6px 0' }, `${S.members.length} / ${S.circle.total}`),
-        h('p', { class: 'hint', text: seatsLeftCount > 0
-          ? `مقاعد متاحة للانضمام: ${seatsLeftCount} — يظهر اسم ورقم كل من يسجل هنا تلقائياً.`
-          : 'الدائرة مكتملة — لا يمكن لأحد جديد التسجيل.' })),
+        h('div', { style: 'font-size:36px;font-weight:900;color:var(--wa-green);margin:6px 0' },
+          isUnlimited ? `${S.members.length} عضو` : `${S.members.length} / ${S.circle.total}`),
+        h('p', { class: 'hint', text: isUnlimited
+          ? 'الانضمام مفتوح وغير محدود — يمكن لأي شخص التسجيل والبدء بالتواصل.'
+          : (seatsLeftCount > 0
+            ? `مقاعد متاحة للانضمام: ${seatsLeftCount} — يظهر اسم ورقم كل من يسجل هنا تلقائياً.`
+            : 'الدائرة مكتملة — لا يمكن لأحد جديد التسجيل.') })),
 
       h('div', { class: 'card', style: 'background:var(--bg-card);border-radius:10px;padding:12px;box-shadow:var(--shadow-sm)' },
         h('div', { class: 'section-title', style: 'font-weight:700;color:var(--text-secondary);margin-bottom:8px', text: 'أعضاء الدائرة' }),
@@ -1955,13 +2615,78 @@ function drawMemberRows(container) {
   }));
 }
 
+/* ------------------------------- سمات الألوان الحديثة وقفل التطبيق ------------------------------- */
+
+function applyThemeAccent(accent) {
+  S.themeAccent = accent;
+  localStorage.setItem('wa_theme_accent', accent);
+  document.body.classList.remove('theme-ocean', 'theme-violet', 'theme-amber', 'theme-midnight');
+  if (accent && accent !== 'emerald') {
+    document.body.classList.add(`theme-${accent}`);
+  }
+}
+
+function showAppLockScreen() {
+  if (!S.appPin) return;
+  if ($('#app-lock-overlay')) return;
+
+  const overlay = h('div', { id: 'app-lock-overlay', class: 'wa-lock-overlay' });
+  const pinInput = h('input', {
+    type: 'password',
+    maxlength: '8',
+    class: 'input lock-pin-input',
+    placeholder: '••••',
+    dir: 'ltr',
+    autofocus: true,
+  });
+
+  const unlockBtn = h('button', {
+    class: 'btn primary block',
+    text: 'فتح القفل',
+    onclick: () => {
+      if (pinInput.value === S.appPin) {
+        overlay.remove();
+        toast('تم إلغاء قفل التطبيق ✓');
+      } else {
+        toast('رمز PIN غير صحيح', 'error');
+        pinInput.value = '';
+        pinInput.focus();
+      }
+    }
+  });
+
+  pinInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') unlockBtn.click();
+  });
+
+  const card = h('div', { class: 'wa-lock-card' },
+    h('div', { class: 'lock-icon' }, '🔒'),
+    h('h2', { text: 'واتساب محمي برمز PIN' }),
+    h('p', { text: 'أدخل رمز الأمان للمتابعة إلى محادثاتك بأمان' }),
+    pinInput,
+    h('div', { style: 'margin-top:16px;width:100%' }, unlockBtn)
+  );
+
+  overlay.append(card);
+  document.body.append(overlay);
+  setTimeout(() => pinInput.focus(), 120);
+}
+
+function lockAppNow() {
+  if (!S.appPin) {
+    toast('يرجى تفعيل رمز PIN أولاً من الإعدادات', 'info');
+    return;
+  }
+  showAppLockScreen();
+}
+
 /* ------------------------------- الإعدادات الشاملة والبروفايل (Settings Hub) ------------------------------- */
 
 function renderProfile(main) {
   const online = S.online.has(S.me.id);
   const isDark = document.body.classList.contains('dark');
 
-  // تعديل الاسم
+  // 1. تعديل الاسم
   const nameInput = h('input', { class: 'input', maxlength: '30', value: S.me.name, placeholder: 'اسمك المستعار' });
   const saveNameBtn = h('button', {
     class: 'btn primary small',
@@ -1978,16 +2703,21 @@ function renderProfile(main) {
     },
   });
 
-  // تعديل الحالة الشخصية (Bio)
-  const bioInput = h('input', { class: 'input', maxlength: '60', value: S.userBio, placeholder: 'اكتب حالتك أو اختر حالة جاهزة...' });
+  // 2. تعديل الحالة الشخصية (Bio)
+  const currentBio = S.me.bio || S.userBio || 'متوفر 🟢';
+  const bioInput = h('input', { class: 'input', maxlength: '60', value: currentBio, placeholder: 'اكتب حالتك أو اختر حالة جاهزة...' });
   const bioPresets = ['متوفر 🟢', 'مشغول 💼', 'في اجتماع 📅', 'في النادي الرياضي 💪', 'نائم 😴', 'في العمل 💻', 'أحب واتساب ❤️'];
   const bioChips = h('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px' },
     ...bioPresets.map((b) => h('button', {
-      class: 'filter-chip small' + (S.userBio === b ? ' active' : ''),
-      onclick: () => {
+      class: 'filter-chip small' + (currentBio === b ? ' active' : ''),
+      onclick: async () => {
         bioInput.value = b;
         S.userBio = b;
+        S.me.bio = b;
         localStorage.setItem('wa_bio_' + S.me.id, b);
+        try {
+          await api('/me', { method: 'PUT', body: { bio: b } });
+        } catch { /* تجاهل الخطأ في حال عدم الاتصال */ }
         toast(`تم تعيين الحالة: ${b}`);
         renderProfile(main);
       }
@@ -1997,45 +2727,51 @@ function renderProfile(main) {
   const saveBioBtn = h('button', {
     class: 'btn secondary small',
     text: 'حفظ الحالة',
-    onclick: () => {
+    onclick: async () => {
       const v = bioInput.value.trim() || 'متوفر 🟢';
       S.userBio = v;
+      S.me.bio = v;
       localStorage.setItem('wa_bio_' + S.me.id, v);
-      toast('تم حفظ الحالة الشخصية ✓');
+      try {
+        await api('/me', { method: 'PUT', body: { bio: v } });
+        toast('تم حفظ الحالة الشخصية في السيرفر ✓');
+      } catch (err) {
+        toast('تم الحفظ محلياً: ' + err.message, 'info');
+      }
       renderProfile(main);
     }
   });
 
-  // ألوان خلفيات الدردشة الجاهزة
-  const presetWallpapers = [
-    { name: 'الافتراضية', color: 'var(--wa-chat-bg)' },
-    { name: 'كلاسيكي فاتح', color: '#efeae2' },
-    { name: 'أخضر نعناعي', color: '#dcf8c6' },
-    { name: 'أزرق هادئ', color: '#e1f5fe' },
-    { name: 'وردي لطيف', color: '#fce4ec' },
-    { name: 'رمادي ليلي', color: '#111b21' },
-    { name: 'كحلي داكن', color: '#0b141a' },
-    { name: 'عنابي فاخر', color: '#2d132c' },
+  // 3. سمات الألوان الحديثة (Theme Accents)
+  const themeAccents = [
+    { id: 'emerald', label: 'أخضر زمردي', color: '#008069', lightBg: '#00a884' },
+    { id: 'ocean', label: 'أزرق عصري', color: '#0284c7', lightBg: '#0ea5e9' },
+    { id: 'violet', label: 'بنفسجي ملكي', color: '#6d28d9', lightBg: '#8b5cf6' },
+    { id: 'amber', label: 'كهرماني دافئ', color: '#b45309', lightBg: '#f59e0b' },
+    { id: 'midnight', label: 'أسود عميق', color: '#18181b', lightBg: '#10b981' },
   ];
 
-  const wallpaperPalette = h('div', { class: 'wallpaper-swatches-grid', style: 'display:flex;gap:8px;flex-wrap:wrap;margin:10px 0' },
-    ...presetWallpapers.map((w) => h('button', {
-      class: 'wallpaper-swatch',
-      title: w.name,
-      style: `width:36px;height:36px;border-radius:50%;background:${w.color};border:2px solid var(--border-subtle);cursor:pointer;transition:transform 0.15s`,
-      onclick: () => {
-        const wrap = $('#chat-wrap');
-        if (wrap) {
-          wrap.style.backgroundImage = 'none';
-          wrap.style.backgroundColor = w.color;
+  const currentAccent = S.themeAccent || 'emerald';
+  const themeAccentPicker = h('div', { class: 'theme-accent-picker' },
+    ...themeAccents.map((acc) => {
+      const isActive = currentAccent === acc.id;
+      return h('button', {
+        class: `theme-accent-btn ${isActive ? 'active' : ''}`,
+        onclick: () => {
+          applyThemeAccent(acc.id);
+          toast(`تم تفعيل سمة: ${acc.label} ✨`);
+          renderProfile(main);
         }
-        localStorage.setItem('wa_preset_bg', w.color);
-        toast(`تم تطبيق خلفية: ${w.name} 🎨`);
-      }
-    }))
+      },
+      h('div', { class: 'theme-accent-circle', style: `background: linear-gradient(135deg, ${acc.color}, ${acc.lightBg})` },
+        isActive ? '✓' : ''
+      ),
+      h('span', { class: 'theme-accent-label' }, acc.label)
+      );
+    })
   );
 
-  // حجم الخط
+  // 4. حجم الخط
   const fontSizes = [
     { id: 'small', label: 'صغير' },
     { id: 'medium', label: 'متوسط (افتراضي)' },
@@ -2055,13 +2791,41 @@ function renderProfile(main) {
     }, f.label))
   );
 
-  // قفل التطبيق برمز PIN
-  const pinStatusText = S.appPin ? '🟢 القفل مفعّل (محمي برمز PIN)' : '⚪ القفل غير مفعّل';
+  // 5. خلفيات الدردشة الجاهزة
+  const presetWallpapers = [
+    { name: 'الافتراضية', color: 'var(--wa-chat-bg)' },
+    { name: 'كلاسيكي فاتح', color: '#efeae2' },
+    { name: 'أخضر نعناعي', color: '#dcf8c6' },
+    { name: 'أزرق هادئ', color: '#e1f5fe' },
+    { name: 'وردي لطيف', color: '#fce4ec' },
+    { name: 'رمادي ليلي', color: '#111b21' },
+    { name: 'كحلي داكن', color: '#0b141a' },
+    { name: 'عنابي فاخر', color: '#2d132c' },
+  ];
+
+  const wallpaperPalette = h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin:10px 0' },
+    ...presetWallpapers.map((w) => h('button', {
+      class: 'wallpaper-swatch',
+      title: w.name,
+      style: `width:36px;height:36px;border-radius:50%;background:${w.color};border:2px solid var(--border-subtle);cursor:pointer;transition:transform 0.15s`,
+      onclick: () => {
+        const wrap = $('#chat-wrap');
+        if (wrap) {
+          wrap.style.backgroundImage = 'none';
+          wrap.style.backgroundColor = w.color;
+        }
+        localStorage.setItem('wa_preset_bg', w.color);
+        toast(`تم تطبيق خلفية: ${w.name} 🎨`);
+      }
+    }))
+  );
+
+  // 6. قفل التطبيق برمز PIN
   const pinLockBtn = h('button', {
-    class: 'btn secondary block',
-    onclick: () => {
+    class: 'btn secondary small',
+    onclick: async () => {
       if (S.appPin) {
-        const inputCode = prompt('أدخل رمز PIN الحالي لإلغاء القفل:');
+        const inputCode = await showPromptModal('إلغاء قفل التطبيق', 'أدخل رمز PIN الحالي للمتابعة:', '', 'رمز PIN الحالي', true);
         if (inputCode === S.appPin) {
           S.appPin = null;
           localStorage.removeItem('wa_pin_' + S.me.id);
@@ -2071,7 +2835,7 @@ function renderProfile(main) {
           toast('رمز PIN غير صحيح', 'error');
         }
       } else {
-        const newPin = prompt('أدخل رمز PIN جديد مكون من 4 أرقام:');
+        const newPin = await showPromptModal('تفعيل قفل التطبيق', 'أدخل رمز PIN جديد لحماية خصوصيتك:', '', '4 أرقام على الأقل', true);
         if (newPin && newPin.trim().length >= 4) {
           S.appPin = newPin.trim();
           localStorage.setItem('wa_pin_' + S.me.id, S.appPin);
@@ -2082,13 +2846,29 @@ function renderProfile(main) {
         }
       }
     },
-    text: S.appPin ? '🔓 إلغاء تفعيل قفل التطبيق' : '🔒 تفعيل قفل التطبيق برمز PIN'
+    text: S.appPin ? '🔓 إلغاء رمز PIN' : '🔒 تفعيل رمز PIN جديد'
   });
 
   const testToneBtn = h('button', {
     class: 'btn ghost small',
     onclick: () => { soundFx.playReceive(); soundFx.playSend(); toast('تم تشغيل نغمات واتساب التجريبية 🎵'); },
     text: '🎵 اختبار النغمة'
+  });
+
+  // 7. قياس سرعة الاتصال والـ Ping
+  const pingBtn = h('button', {
+    class: 'btn ghost small',
+    text: '⚡ فحص سرعة الاتصال (Ping)',
+    onclick: async () => {
+      const t0 = performance.now();
+      try {
+        await api('/circle');
+        const elapsed = Math.round(performance.now() - t0);
+        toast(`استجابة السيرفر ممتازة: ${elapsed} مللي ثانية ⚡`, 'info');
+      } catch {
+        toast('تعذر قياس سرعة الاتصال بالخادم', 'error');
+      }
+    }
   });
 
   main.replaceChildren(
@@ -2100,97 +2880,224 @@ function renderProfile(main) {
       h('div', { class: 'profile-name', text: S.me.name }),
       h('div', { class: 'profile-phone', dir: 'ltr', text: fmtPhone(S.me.phone) }),
       h('div', { style: 'margin-top:6px;font-size:13.5px;color:var(--text-secondary);background:var(--bg-subtle);padding:4px 12px;border-radius:12px;display:inline-block' },
-        `الحالة: ${S.userBio}`)),
+        `الحالة: ${currentBio}`)),
 
     // 2. بطاقة تعديل الاسم والحالة
-    h('div', { class: 'card', style: 'margin:12px;border-radius:10px;background:var(--bg-card);padding:14px' },
-      h('div', { class: 'section-title', style: 'font-weight:700;margin-bottom:8px;color:var(--wa-green)', text: '👤 الملف الشخصي والحساب' }),
+    h('div', { class: 'settings-section-card' },
+      h('div', { class: 'settings-section-title' },
+        icon('members', 18),
+        h('span', { text: 'الملف الشخصي والحساب' })),
       h('div', { style: 'font-size:13px;color:var(--text-secondary);margin-bottom:4px', text: 'الاسم المعروض في المحادثات:' }),
       h('div', { style: 'display:flex;gap:8px;margin-bottom:14px' }, nameInput, saveNameBtn),
       h('div', { style: 'font-size:13px;color:var(--text-secondary);margin-bottom:4px', text: 'الأخبار / الحالة (Bio):' }),
       bioInput,
       bioChips,
-      h('div', { style: 'margin-top:8px;display:flex;justify-content:flex-end' }, saveBioBtn)
+      h('div', { style: 'margin-top:8px;display:flex;justify-content:flex-end' }, saveBioBtn),
+      h('div', { style: 'margin-top:14px;padding-top:10px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted)' },
+        h('span', { text: `المعرف: ${S.me.id}` }),
+        h('span', { text: `الدائرة: ${S.circle.name}` }))
     ),
 
-    // 3. الخصوصية والأمان
-    h('div', { class: 'card', style: 'margin:12px;border-radius:10px;background:var(--bg-card);padding:14px' },
-      h('div', { class: 'section-title', style: 'font-weight:700;margin-bottom:8px;color:var(--wa-green)', text: '🔒 الخصوصية والأمان' }),
-      h('div', { style: 'display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle)' },
-        h('div', {},
-          h('div', { style: 'font-weight:600;font-size:14px', text: 'مؤشرات قراءة الرسائل (العلامات الزرقاء)' }),
-          h('div', { style: 'font-size:12px;color:var(--text-secondary)', text: 'إظهار علامات ✓✓ الزرقاء عند قراءة الرسائل' })),
-        h('input', {
-          type: 'checkbox',
-          style: 'width:20px;height:20px;accent-color:var(--wa-green);cursor:pointer',
-          checked: S.readReceipts,
-          onchange: (e) => {
-            S.readReceipts = e.target.checked;
-            localStorage.setItem('wa_read_receipts', String(S.readReceipts));
-            toast(S.readReceipts ? 'تم تفعيل مؤشرات القراءة ✓✓' : 'تم إخفاء مؤشرات القراءة');
-          }
+    // 3. المظهر والسمات الحديثة
+    h('div', { class: 'settings-section-card' },
+      h('div', { class: 'settings-section-title' },
+        icon('status', 18),
+        h('span', { text: 'المظهر والسمات الحديثة' })),
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'وضع الألوان (نهاري / ليلي)' }),
+          h('div', { class: 'settings-row-desc', text: isDark ? 'الوضع الليلي مفعّل حالياً' : 'الوضع النهاري مفعّل حالياً' })),
+        h('button', {
+          class: 'btn ghost small',
+          onclick: toggleDarkMode,
+          text: isDark ? '☀️ تفعيل النهاري' : '🌙 تفعيل الليلي'
         })
       ),
       h('div', { style: 'margin-top:12px' },
-        h('div', { style: 'font-size:12.5px;color:var(--text-secondary);margin-bottom:6px', text: pinStatusText }),
-        pinLockBtn),
-      h('div', { style: 'margin-top:10px;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px' },
-        h('span', { text: '🛡️' }),
-        h('span', { text: 'جميع رسائل ومكالمات هذه الدائرة مشفرة تماماً بين الأعضاء المصرح لهم فقط.' }))
-    ),
-
-    // 4. الدردشات والمظهر
-    h('div', { class: 'card', style: 'margin:12px;border-radius:10px;background:var(--bg-card);padding:14px' },
-      h('div', { class: 'section-title', style: 'font-weight:700;margin-bottom:8px;color:var(--wa-green)', text: '💬 الدردشات والمظهر' }),
-      h('button', {
-        class: 'btn ghost block',
-        style: 'text-align:right;justify-content:flex-start;gap:8px',
-        onclick: toggleDarkMode,
-        text: isDark ? '☀️ التبديل إلى الوضع النهاري الفاتح' : '🌙 التبديل إلى الوضع الليلي الداكن'
-      }),
+        h('div', { style: 'font-size:13px;font-weight:600;color:var(--text-main);margin-bottom:4px', text: 'سمة ألوان واتساب (Color Theme Accent):' }),
+        themeAccentPicker),
       h('div', { style: 'margin-top:12px' },
-        h('div', { style: 'font-size:13px;color:var(--text-secondary)', text: 'حجم خط الرسائل والنصوص:' }),
+        h('div', { style: 'font-size:13px;font-weight:600;color:var(--text-main);margin-bottom:4px', text: 'حجم خط الرسائل والنصوص:' }),
         fontSelector),
       h('div', { style: 'margin-top:14px' },
-        h('div', { style: 'font-size:13px;color:var(--text-secondary);margin-bottom:4px', text: 'خلفيات المحادثة السريعة:' }),
+        h('div', { style: 'font-size:13px;font-weight:600;color:var(--text-main);margin-bottom:4px', text: 'خلفيات المحادثة:' }),
         wallpaperPalette,
         h('div', { style: 'display:flex;gap:8px;margin-top:8px' },
-          h('button', { class: 'btn secondary small block', onclick: () => $('#bg-file-input')?.click(), text: '🖼️ رفع صورة مخصصة من جهازك' }),
-          h('button', { class: 'btn ghost small', onclick: () => { S.chatBackground = null; applyChatBg(); toast('تمت استعادة الخلفية الافتراضية'); }, text: 'استعادة الافتراضية' }))
-      ),
-      h('div', { style: 'margin-top:14px;border-top:1px solid var(--border-subtle);padding-top:10px' },
-        h('div', { style: 'font-weight:600;font-size:13.5px;margin-bottom:6px', text: '📄 النسخ الاحتياطي وتصدير الدردشة' }),
-        h('div', { style: 'display:flex;gap:8px' },
-          h('button', { class: 'btn ghost small', style: 'flex:1', onclick: () => exportChatHistory('txt'), text: 'تصدير كمستند نصي (.txt)' }),
-          h('button', { class: 'btn ghost small', style: 'flex:1', onclick: () => exportChatHistory('json'), text: 'تصدير كبيانات (.json)' })))
+          h('button', { class: 'btn secondary small block', onclick: () => $('#bg-file-input')?.click(), text: '🖼️ رفع صورة مخصصة' }),
+          h('button', { class: 'btn ghost small', onclick: () => { S.chatBackground = null; localStorage.removeItem('wa_preset_bg'); applyChatBg(); toast('تمت استعادة الخلفية الافتراضية'); }, text: 'استعادة الافتراضية' }))
+      )
     ),
 
-    // 5. الإشعارات والأصوات
-    h('div', { class: 'card', style: 'margin:12px;border-radius:10px;background:var(--bg-card);padding:14px' },
-      h('div', { class: 'section-title', style: 'font-weight:700;margin-bottom:8px;color:var(--wa-green)', text: '🔔 الإشعارات والأصوات' }),
-      h('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px' },
-        h('div', { style: 'font-weight:600;font-size:14px', text: soundFx.enabled ? 'أصوات الرسائل مفعلة 🔔' : 'أصوات الرسائل مكتومة 🔕' }),
+    // 4. الخصوصية والأمان
+    h('div', { class: 'settings-section-card' },
+      h('div', { class: 'settings-section-title' },
+        icon('lock', 18),
+        h('span', { text: 'الخصوصية والأمان' })),
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'مؤشرات قراءة الرسائل (العلامات الزرقاء)' }),
+          h('div', { class: 'settings-row-desc', text: 'إظهار علامات الصحين ✓✓ الزرقاء عند قراءة الرسائل' })),
+        h('label', { class: 'toggle-switch' },
+          h('input', {
+            type: 'checkbox',
+            checked: S.readReceipts,
+            onchange: (e) => {
+              S.readReceipts = e.target.checked;
+              localStorage.setItem('wa_read_receipts', String(S.readReceipts));
+              toast(S.readReceipts ? 'تم تفعيل مؤشرات القراءة ✓✓' : 'تم إخفاء مؤشرات القراءة');
+            }
+          }),
+          h('span', { class: 'toggle-slider' }))
+      ),
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'مؤشر جاري الكتابة' }),
+          h('div', { class: 'settings-row-desc', text: 'إظهار عبارة (يكتب الآن...) لأعضاء الدائرة عند الكتابة' })),
+        h('label', { class: 'toggle-switch' },
+          h('input', {
+            type: 'checkbox',
+            checked: S.showTyping,
+            onchange: (e) => {
+              S.showTyping = e.target.checked;
+              localStorage.setItem('wa_show_typing', String(S.showTyping));
+              toast(S.showTyping ? 'تم تفعيل مؤشر الكتابة' : 'تم إيقاف مؤشر الكتابة');
+            }
+          }),
+          h('span', { class: 'toggle-slider' }))
+      ),
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'قفل التطبيق برمز PIN' }),
+          h('div', { class: 'settings-row-desc', text: S.appPin ? '🟢 القفل مفعّل ومحمي' : '⚪ القفل غير مفعل' })),
         h('div', { style: 'display:flex;gap:6px' },
+          pinLockBtn,
+          S.appPin ? h('button', { class: 'btn primary small', onclick: lockAppNow, text: '🔒 قفل الآن' }) : null)
+      ),
+      h('div', { style: 'margin-top:10px;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px' },
+        icon('shield', 16),
+        h('span', { text: 'جميع رسائل ومكالمات هذه الدائرة مشفرة ومحمية بالكامل.' }))
+    ),
+
+    // 5. المحادثات وإدارة السجل
+    h('div', { class: 'settings-section-card' },
+      h('div', { class: 'settings-section-title' },
+        icon('chat', 18),
+        h('span', { text: 'المحادثات وإدارة السجل' })),
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'إرسال بمفتاح Enter' }),
+          h('div', { class: 'settings-row-desc', text: 'الضغط على Enter يُرسل الرسالة، و Shift+Enter لسطر جديد' })),
+        h('label', { class: 'toggle-switch' },
+          h('input', {
+            type: 'checkbox',
+            checked: S.enterSend,
+            onchange: (e) => {
+              S.enterSend = e.target.checked;
+              localStorage.setItem('wa_enter_send', String(S.enterSend));
+              toast(S.enterSend ? 'تم تفعيل الإرسال بزر Enter' : 'تم تعطيل الإرسال بزر Enter');
+            }
+          }),
+          h('span', { class: 'toggle-slider' }))
+      ),
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'التشغيل التلقائي للصوتيات' }),
+          h('div', { class: 'settings-row-desc', text: 'تشغيل الملاحظات الصوتية تلقائياً عند وصولها' })),
+        h('label', { class: 'toggle-switch' },
+          h('input', {
+            type: 'checkbox',
+            checked: S.autoPlayVoice,
+            onchange: (e) => {
+              S.autoPlayVoice = e.target.checked;
+              localStorage.setItem('wa_auto_play_voice', String(S.autoPlayVoice));
+              toast(S.autoPlayVoice ? 'تم تفعيل التشغيل التلقائي للصوت' : 'تم تعطيل التشغيل التلقائي');
+            }
+          }),
+          h('span', { class: 'toggle-slider' }))
+      ),
+      h('div', { style: 'margin-top:12px;display:flex;gap:8px' },
+        h('button', { class: 'btn ghost small block', style: 'flex:1', onclick: () => exportChatHistory('txt'), text: '📄 تصدير سجل الدردشة (.txt)' }),
+        h('button', { class: 'btn ghost small block', style: 'flex:1', onclick: () => exportChatHistory('json'), text: '📦 تصدير كبيانات (.json)' })),
+      h('div', { style: 'margin-top:10px' },
+        h('button', {
+          class: 'btn small block',
+          style: 'background:rgba(234,67,53,0.1);color:var(--wa-danger);border:1px solid var(--wa-danger);width:100%',
+          onclick: async () => {
+            const confirmed = await showConfirm(
+              'مسح سجل المحادثة بالكامل',
+              'هل أنت متأكد تماماً من رغبتك في حذف جميع الرسائل في هذه الدائرة؟ لا يمكن استرجاعها بعد الحذف.',
+              'مسح جميع الرسائل',
+              'إلغاء',
+              true
+            );
+            if (!confirmed) return;
+            try {
+              await api('/messages', { method: 'DELETE' });
+              S.messages = [];
+              toast('تم مسح سجل المحادثة بالكامل بنجاح 🗑️');
+              refreshChatList();
+            } catch (err) { toast(err.message, 'error'); }
+          },
+          text: '🗑️ مسح سجل المحادثة بالكامل'
+        }))
+    ),
+
+    // 6. الإشعارات والأصوات
+    h('div', { class: 'settings-section-card' },
+      h('div', { class: 'settings-section-title' },
+        icon('bell', 18),
+        h('span', { text: 'الإشعارات والتنبيهات' })),
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'أصوات المحادثة' }),
+          h('div', { class: 'settings-row-desc', text: soundFx.enabled ? 'أصوات الإرسال والاستلام مفعلة' : 'الأصوات مكتومة' })),
+        h('div', { style: 'display:flex;gap:6px;align-items:center' },
           testToneBtn,
           h('button', { class: 'btn primary small', onclick: () => { toggleSounds(); renderProfile(main); }, text: soundFx.enabled ? 'كتم' : 'تفعيل' }))
       ),
-      h('button', {
-        class: 'btn ghost block small',
-        style: 'text-align:right;justify-content:flex-start;margin-top:8px',
-        onclick: () => {
-          if ('Notification' in window) {
-            Notification.requestPermission().then((p) => toast(p === 'granted' ? 'تم منح إذن الإشعارات ✓' : 'تم رفض الإذن', p === 'granted' ? 'info' : 'error'));
-          } else toast('الإشعارات غير مدعومة في هذا المتصفح');
-        },
-        text: '📱 طلب إذن إشعارات سطح المكتب والهاتف'
-      })
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'إشعارات سطح المكتب والهاتف' }),
+          h('div', { class: 'settings-row-desc', text: 'تنبيهك بالرسائل الجديدة حتى عند تصغير المتصفح' })),
+        h('button', {
+          class: 'btn secondary small',
+          onclick: () => {
+            if ('Notification' in window) {
+              Notification.requestPermission().then((p) => {
+                toast(p === 'granted' ? 'تم منح إذن الإشعارات بنجاح ✓' : 'تم رفض الإذن', p === 'granted' ? 'info' : 'error');
+                renderProfile(main);
+              });
+            } else toast('الإشعارات غير مدعومة في هذا المتصفح');
+          },
+          text: 'طلب الإذن 🔔'
+        })
+      ),
+      h('div', { class: 'settings-row' },
+        h('div', { class: 'settings-row-info' },
+          h('div', { class: 'settings-row-title', text: 'الاهتزاز عند التنبيه' }),
+          h('div', { class: 'settings-row-desc', text: 'اهتزاز لطيف للأجهزة المدعومة' })),
+        h('label', { class: 'toggle-switch' },
+          h('input', {
+            type: 'checkbox',
+            checked: S.vibration,
+            onchange: (e) => {
+              S.vibration = e.target.checked;
+              localStorage.setItem('wa_vibration', String(S.vibration));
+              if (S.vibration && navigator.vibrate) navigator.vibrate(100);
+              toast(S.vibration ? 'تم تفعيل الاهتزاز' : 'تم تعطيل الاهتزاز');
+            }
+          }),
+          h('span', { class: 'toggle-slider' }))
+      )
     ),
 
-    // 6. التخزين والوسائط والمكتبة
-    h('div', { class: 'card', style: 'margin:12px;border-radius:10px;background:var(--bg-card);padding:14px' },
-      h('div', { class: 'section-title', style: 'font-weight:700;margin-bottom:8px;color:var(--wa-green)', text: '💾 التخزين والوسائط' }),
+    // 7. التخزين والوسائط
+    h('div', { class: 'settings-section-card' },
+      h('div', { class: 'settings-section-title' },
+        icon('image', 18),
+        h('span', { text: 'الوسائط والتخزين' })),
       h('div', { style: 'display:flex;gap:8px;margin-bottom:10px' },
-        h('button', { class: 'btn secondary block', style: 'flex:1', onclick: openMediaGallery, text: '🖼️ معرض وسائط الدائرة' }),
+        h('button', { class: 'btn secondary block', style: 'flex:1', onclick: openMediaGallery, text: '🖼️ معرض الوسائط والمستندات' }),
         h('button', { class: 'btn ghost block', style: 'flex:1', onclick: openStarredMessages, text: '⭐ الرسائل المميزة' })),
       h('div', { style: 'font-size:12.5px;color:var(--text-secondary);margin-bottom:8px', text: `إجمالي الرسائل المحفوظة: ${S.messages.length} • المنشورات: ${S.posts.length} • الحالات: ${S.statuses.length}` }),
       h('button', {
@@ -2203,17 +3110,23 @@ function renderProfile(main) {
       })
     ),
 
-    // 7. دليل الاختصارات والمساعدة
-    h('div', { class: 'card', style: 'margin:12px;border-radius:10px;background:var(--bg-card);padding:14px' },
-      h('div', { class: 'section-title', style: 'font-weight:700;margin-bottom:8px;color:var(--wa-green)', text: '⌨️ الاختصارات والمساعدة' }),
-      h('button', { class: 'btn ghost block', style: 'text-align:right;justify-content:flex-start;gap:8px', onclick: openShortcutsModal, text: '⌨️ عرض دليل اختصارات لوحة المفاتيح' }),
+    // 8. الاختصارات وفحص الخادم
+    h('div', { class: 'settings-section-card' },
+      h('div', { class: 'settings-section-title' },
+        h('span', { text: '⌨️' }),
+        h('span', { text: 'الاختصارات ودليل الاستخدام' })),
+      h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
+        h('button', { class: 'btn ghost block', style: 'flex:1;text-align:right;justify-content:flex-start;gap:8px', onclick: openShortcutsModal, text: '⌨️ عرض دليل الاختصارات الشامل (Ctrl+/)' }),
+        pingBtn),
       h('div', { style: 'margin-top:10px;font-size:12px;color:var(--text-muted);text-align:center' },
-        `واتساب الدائرة الخاصة • الإصدار 2.5 الفاخر • متصل بخادم فوري مشفر`)
+        `واتساب الدائرة الخاصة • الإصدار 2.5 العصري • جاهز للاستخدام والتكامل السحابي`)
     ),
 
-    // 8. إدارة الحساب
-    h('div', { class: 'card', style: 'margin:12px;border-radius:10px;background:var(--bg-card);padding:14px' },
-      h('div', { class: 'section-title', style: 'font-weight:700;margin-bottom:8px;color:var(--wa-danger)', text: '🚪 إدارة الحساب والخروج' }),
+    // 9. إدارة الحساب والخروج
+    h('div', { class: 'settings-section-card' },
+      h('div', { class: 'settings-section-title', style: 'color:var(--wa-danger)' },
+        icon('close', 18),
+        h('span', { text: 'إدارة الحساب والخروج' })),
       h('div', { style: 'display:flex;gap:8px' },
         h('button', { class: 'btn secondary small block', style: 'color:var(--wa-danger)', onclick: logout, text: 'تسجيل الخروج' }),
         h('button', { class: 'btn leave-btn small block', style: 'color:var(--wa-danger);border:1px solid var(--wa-danger)', onclick: leaveCircle, text: 'مغادرة الدائرة نهائياً' }))
@@ -3029,10 +3942,11 @@ function openShortcutsModal() {
       ]
     },
     {
-      title: '🎨 التخصيص والمظهر',
+      title: '🎨 التخصيص والأمان',
       items: [
         { key: 'Ctrl + D', desc: 'التبديل بين الوضع الليلي والنهاري 🌙/☀️' },
         { key: 'Ctrl + M', desc: 'تفعيل أو كتم أصوات واتساب 🔔/🔕' },
+        { key: 'Ctrl + Shift + L', desc: 'قفل التطبيق فوراً برمز PIN 🔒' },
         { key: 'Escape', desc: 'إغلاق أي نافذة منبثقة أو قائمة مفتوحة' },
         { key: 'Ctrl + /  أو  ?', desc: 'فتح دليل الاختصارات هذا في أي وقت ⌨️' },
       ]
@@ -3070,7 +3984,7 @@ function setupKeyboardShortcuts() {
     const inInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
 
     if (e.key === 'Escape') {
-      const openModal = document.querySelector('.modal-overlay');
+      const openModal = document.querySelector('.modal-overlay, .wa-modal-overlay');
       if (openModal) openModal.remove();
       const openSearchEl = document.querySelector('.search-overlay');
       if (openSearchEl) openSearchEl.remove();
@@ -3086,6 +4000,18 @@ function setupKeyboardShortcuts() {
     if ((e.ctrlKey || e.metaKey) && e.key === '/') {
       e.preventDefault();
       openShortcutsModal();
+      return;
+    }
+
+    if (!inInput && e.key === '?') {
+      e.preventDefault();
+      openShortcutsModal();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+      e.preventDefault();
+      lockAppNow();
       return;
     }
 
@@ -3199,7 +4125,14 @@ async function deleteMessage(msgId) {
 }
 
 async function leaveCircle() {
-  if (!confirm('هل أنت متأكد من مغادرة الدائرة؟\n\nسيتم حذف جميع منشوراتك ورسائلك نهائياً.')) return;
+  const ok = await showConfirm(
+    'مغادرة الدائرة',
+    'هل أنت متأكد من مغادرة الدائرة نهائياً؟ سيتم حذف جميع منشوراتك ورسائلك من السيرفر.',
+    'مغادرة الدائرة',
+    'إلغاء',
+    true
+  );
+  if (!ok) return;
   try {
     await api('/me', { method: 'DELETE' });
     toast('تم مغادرة الدائرة ✓');
@@ -3322,6 +4255,18 @@ function onWsEvent(ev) {
     case 'message_reaction': {
       const m = S.messages.find((x) => x.id === ev.id);
       if (m) { m.reactions = ev.reactions; refreshChatList(); }
+      break;
+    }
+    case 'message_poll': {
+      const m = S.messages.find((x) => x.id === ev.id);
+      if (m) {
+        m.poll = ev.poll;
+        const oldBubble = document.getElementById(`msg-bubble-${m.id}`);
+        if (oldBubble && oldBubble.parentElement) {
+          const newRow = chatBubble(m);
+          oldBubble.parentElement.replaceWith(newRow);
+        }
+      }
       break;
     }
     case 'message_deleted':

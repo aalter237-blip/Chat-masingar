@@ -19,8 +19,8 @@ export const config = {
 
   appName: process.env.APP_NAME || 'ماسنجر لايت',
 
-  /** فتح التسجيل لأي شخص — حد أعلى فقط للحماية */
-  maxMembers: Math.max(2, int(process.env.MAX_MEMBERS, 500)),
+  /** فتح التسجيل لأي شخص — غير محدود */
+  maxMembers: Infinity,
 
   /** بدون رمز انضمام — مفتوح للجميع */
   joinCode: '',

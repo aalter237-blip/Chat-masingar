@@ -43,18 +43,26 @@ function fail(res, status, code, message) {
   return res.status(status).json({ ok: false, code, message });
 }
 
-/** يستخرج صورة مضغوطة (data:image/jpeg;base64,...) ويتأكد أنها JPEG حقيقي. */
+/** يستخرج صورة مضغوطة ويتأكد من سلامة الحجم والصيغة. */
 function parsePhoto(input) {
   if (!input) return { ok: true, photo: null };
-  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(input));
-  if (!m) return { ok: false, status: 400, code: 'bad_photo', message: 'صيغة الصورة غير مدعومة (JPEG فقط)' };
-  const bytes = Buffer.from(m[1], 'base64');
+  const m = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(input));
+  if (!m) {
+    const raw = String(input).includes('base64,') ? String(input).split('base64,')[1] : null;
+    if (!raw) return { ok: false, status: 400, code: 'bad_photo', message: 'صيغة الصورة غير مدعومة' };
+    const bytes = Buffer.from(raw, 'base64');
+    if (bytes.length < 100) return { ok: false, status: 400, code: 'bad_photo', message: 'الصورة فارغة' };
+    if (bytes.length > config.maxPhotoBytes)
+      return { ok: false, status: 413, code: 'photo_too_big', message: `الصورة أكبر من ${Math.round(config.maxPhotoBytes / 1024)} كيلوبايت` };
+    return { ok: true, photo: store.saveMedia(bytes, 'jpg', 'image/jpeg') };
+  }
+  const ext = m[1] === 'png' ? 'png' : (m[1] === 'webp' ? 'webp' : 'jpg');
+  const mime = m[1] === 'png' ? 'image/png' : (m[1] === 'webp' ? 'image/webp' : 'image/jpeg');
+  const bytes = Buffer.from(m[2], 'base64');
   if (bytes.length < 100) return { ok: false, status: 400, code: 'bad_photo', message: 'الصورة فارغة' };
   if (bytes.length > config.maxPhotoBytes)
     return { ok: false, status: 413, code: 'photo_too_big', message: `الصورة أكبر من ${Math.round(config.maxPhotoBytes / 1024)} كيلوبايت` };
-  if (bytes[0] !== 0xff || bytes[1] !== 0xd8)
-    return { ok: false, status: 400, code: 'bad_photo', message: 'محتوى الصورة غير صالح' };
-  return { ok: true, photo: store.saveMedia(bytes, 'jpg', 'image/jpeg') };
+  return { ok: true, photo: store.saveMedia(bytes, ext, mime) };
 }
 
 function parseAudio(input, duration = 0) {
@@ -71,9 +79,17 @@ function parseAudio(input, duration = 0) {
 }
 
 function enrichAuthor(userId) {
-  if (!userId) return { id: '', name: 'عضو' };
+  if (!userId) return { id: '', name: 'عضو', avatar: null, bio: 'متوفر 🟢', phone: '' };
   const u = store.members().find((x) => x && x.id === userId);
-  return { id: userId, name: u ? u.name : 'عضو سابق' };
+  return {
+    id: userId,
+    name: u ? u.name : 'عضو سابق',
+    avatar: u?.avatar?.url || (typeof u?.avatar === 'string' ? u.avatar : null),
+    bio: u?.bio || 'متوفر 🟢',
+    phone: u?.phone || '',
+    lastSeen: u?.lastSeen || null,
+    createdAt: u?.createdAt || null,
+  };
 }
 
 const enrichPost = (p) => ({
@@ -91,6 +107,8 @@ const enrichMessage = (m) => ({
   text: m.text || '',
   photo: m.photo?.url || null,
   audio: m.audio ? { url: m.audio.url, duration: m.audio.duration || 1 } : null,
+  file: m.file ? { name: m.file.name, size: m.file.size, type: m.file.type, data: m.file.data } : null,
+  poll: m.poll || null,
   replyTo: m.replyTo || null,
   reactions: (typeof m.reactions === 'object' && m.reactions !== null) ? m.reactions : {},
   createdAt: m.createdAt || Date.now(),
@@ -115,7 +133,8 @@ api.get('/circle', (_req, res) => {
     ok: true,
     name: config.appName,
     members: store.members().length,
-    total: config.maxMembers,
+    total: Number.isFinite(config.maxMembers) ? config.maxMembers : null,
+    unlimited: !Number.isFinite(config.maxMembers),
     joinCodeRequired: !!config.joinCode,
   });
 });
@@ -129,7 +148,7 @@ api.post('/auth/request', (req, res) => {
   if (!phone) return fail(res, 400, 'bad_phone', 'أدخل رقم هاتف صحيحاً مع رمز الدولة');
 
   const isMember = !!store.userByPhone(phone);
-  if (!isMember && store.seatsLeft() <= 0) {
+  if (!isMember && Number.isFinite(config.maxMembers) && store.seatsLeft() <= 0) {
     return fail(res, 403, 'circle_full', `الدائرة مكتملة (${config.maxMembers}/${config.maxMembers}) — لا مزيد من الأعضاء`);
   }
 
@@ -139,7 +158,7 @@ api.post('/auth/request', (req, res) => {
       ok: true,
       phone,
       isMember,
-      seatsLeft: store.seatsLeft(),
+      seatsLeft: Number.isFinite(store.seatsLeft()) ? store.seatsLeft() : null,
       code: prev.code,
     });
   }
@@ -149,7 +168,7 @@ api.post('/auth/request', (req, res) => {
     ok: true,
     phone,
     isMember,
-    seatsLeft: store.seatsLeft(),
+    seatsLeft: Number.isFinite(store.seatsLeft()) ? store.seatsLeft() : null,
     // وضع الدائرة الخاصة: لا مزوّد SMS — الكود يظهر داخل التطبيق.
     code: entry.code,
   });
@@ -178,7 +197,7 @@ api.post('/auth/verify', (req, res) => {
   let token;
 
   if (!user) {
-    if (store.seatsLeft() <= 0) {
+    if (Number.isFinite(config.maxMembers) && store.seatsLeft() <= 0) {
       return fail(res, 403, 'circle_full', 'الدائرة مكتملة — لا مزيد من الأعضاء');
     }
     if (config.joinCode && cleanText(req.body?.joinCode, 40) !== config.joinCode) {
@@ -222,16 +241,53 @@ api.get('/state', (req, res) => {
     posts: store.posts().map(enrichPost),
     messages: store.messages().map(enrichMessage),
     statuses: store.statuses().map(enrichStatus),
-    circle: { name: config.appName, total: config.maxMembers },
+    circle: {
+      name: config.appName,
+      total: Number.isFinite(config.maxMembers) ? config.maxMembers : null,
+      unlimited: !Number.isFinite(config.maxMembers),
+    },
   });
 });
 
 api.put('/me', (req, res) => {
-  const name = cleanText(req.body?.name, 30);
-  if (!name || name.length < 2) return fail(res, 400, 'bad_name', 'الاسم قصير جداً');
-  store.renameUser(req.user, name);
+  const name = req.body?.name !== undefined ? cleanText(req.body?.name, 30) : undefined;
+  const bio = req.body?.bio !== undefined ? cleanText(req.body?.bio, 100) : undefined;
+  let avatar = undefined;
+
+  if (req.body?.avatar === null || req.body?.avatar === '') {
+    avatar = null;
+  } else if (req.body?.avatar !== undefined) {
+    const r = parsePhoto(req.body.avatar);
+    if (!r.ok) return fail(res, r.status, r.code, r.message);
+    avatar = r.photo;
+  }
+
+  if (name === undefined && bio === undefined && avatar === undefined) {
+    return fail(res, 400, 'bad_request', 'لا توجد بيانات للتعديل');
+  }
+  if (name !== undefined && name.length < 2) return fail(res, 400, 'bad_name', 'الاسم قصير جداً');
+
+  store.updateUserProfile(req.user, {
+    name: name || undefined,
+    bio: bio !== undefined ? bio : undefined,
+    avatar,
+  });
   broadcast({ type: 'members' });
   res.json({ ok: true, me: store.publicUser(req.user) });
+});
+
+api.get('/users/:id', (req, res) => {
+  const u = store.members().find((x) => x && x.id === req.params.id);
+  if (!u) return fail(res, 404, 'not_found', 'المستخدم غير موجود');
+  const userPosts = store.posts().filter((p) => p.userId === u.id).length;
+  const userMessages = store.messages().filter((m) => m.userId === u.id).length;
+  res.json({
+    ok: true,
+    user: {
+      ...store.publicUser(u),
+      stats: { posts: userPosts, messages: userMessages },
+    },
+  });
 });
 
 api.put('/chat-background', (req, res) => {
@@ -298,7 +354,39 @@ api.post('/messages', (req, res) => {
   const rAudio = parseAudio(req.body?.audio, req.body?.duration);
   if (!rAudio.ok) return fail(res, rAudio.status, rAudio.code, rAudio.message);
 
-  if (!text && !rPhoto.photo && !rAudio.audio) return fail(res, 400, 'empty_message', 'اكتب رسالة أو أرفق وسائط');
+  let file = null;
+  if (req.body?.file && typeof req.body.file === 'object') {
+    const rawData = typeof req.body.file.data === 'string' ? req.body.file.data : '';
+    // Max 15MB file base64
+    if (rawData && rawData.length < 20 * 1024 * 1024) {
+      file = {
+        name: cleanText(req.body.file.name, 120) || 'مستند',
+        size: Number(req.body.file.size) || 0,
+        type: cleanText(req.body.file.type, 80) || 'application/octet-stream',
+        data: rawData,
+      };
+    }
+  }
+
+  let poll = null;
+  if (req.body?.poll && typeof req.body.poll === 'object') {
+    const question = cleanText(req.body.poll.question, 250);
+    const rawOpts = Array.isArray(req.body.poll.options) ? req.body.poll.options : [];
+    const options = rawOpts
+      .map((opt, i) => ({
+        id: `opt_${i + 1}`,
+        text: cleanText(typeof opt === 'string' ? opt : opt?.text, 120),
+        voters: [],
+      }))
+      .filter((o) => o.text.length > 0);
+    if (question && options.length >= 2) {
+      poll = { question, options };
+    }
+  }
+
+  if (!text && !rPhoto.photo && !rAudio.audio && !file && !poll) {
+    return fail(res, 400, 'empty_message', 'اكتب رسالة أو أرفق وسائط');
+  }
 
   let replyTo = null;
   if (req.body?.replyTo && typeof req.body.replyTo === 'object') {
@@ -309,9 +397,20 @@ api.post('/messages', (req, res) => {
     };
   }
 
-  const msg = store.addMessage(req.user, { text, photo: rPhoto.photo, audio: rAudio.audio, replyTo });
+  const msg = store.addMessage(req.user, { text, photo: rPhoto.photo, audio: rAudio.audio, file, poll, replyTo });
   broadcast({ type: 'message', message: enrichMessage(msg) });
   res.json({ ok: true, message: enrichMessage(msg) });
+});
+
+api.post('/messages/:id/vote', (req, res) => {
+  const msg = store.messageById(req.params.id);
+  if (!msg) return fail(res, 404, 'not_found', 'الرسالة غير موجودة');
+  const optionId = cleanText(req.body?.optionId, 30);
+  if (!optionId) return fail(res, 400, 'bad_option', 'حدد خيار التصويت');
+  const poll = store.voteMessagePoll(msg, req.user.id, optionId);
+  if (!poll) return fail(res, 400, 'bad_poll', 'هذه الرسالة لا تحتوي على استطلاع');
+  broadcast({ type: 'message_poll', id: msg.id, poll });
+  res.json({ ok: true, poll });
 });
 
 api.post('/messages/:id/react', (req, res) => {
@@ -322,6 +421,12 @@ api.post('/messages/:id/react', (req, res) => {
   const reactions = store.toggleMessageReaction(msg, req.user.id, emoji);
   broadcast({ type: 'message_reaction', id: msg.id, reactions });
   res.json({ ok: true, reactions });
+});
+
+api.delete('/messages', (req, res) => {
+  store.clearAllMessages();
+  broadcast({ type: 'messages_cleared' });
+  res.json({ ok: true, message: 'تم مسح سجل المحادثة بالكامل' });
 });
 
 api.delete('/messages/:id', (req, res) => {

@@ -2,34 +2,95 @@
  * ماسنجر لايت — إعدادات السيرفر.
  * كل قيمة يمكن تغييرها بمتغير بيئة، ولا يوجد أي اعتماد على مكتبات خارجية.
  */
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(here, '..');
+
+/* تحميل متغيرات البيئة من ملف .env تلقائياً إن وجد لدعم WispByte والسيرفرات المحلية */
+function loadDotEnv() {
+  const candidates = [
+    join(process.cwd(), '.env'),
+    join(ROOT, '..', '.env'),
+    join(ROOT, '.env'),
+  ];
+  for (const envPath of candidates) {
+    if (fs.existsSync(envPath)) {
+      try {
+        const content = fs.readFileSync(envPath, 'utf8');
+        for (const line of content.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx > 0) {
+            const key = trimmed.slice(0, eqIdx).trim();
+            let val = trimmed.slice(eqIdx + 1).trim();
+            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+              val = val.slice(1, -1);
+            }
+            if (!(key in process.env)) {
+              process.env[key] = val;
+            }
+          }
+        }
+      } catch { /* أفضل جهد */ }
+      break;
+    }
+  }
+}
+loadDotEnv();
 
 const int = (v, def) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : def;
 };
 
+function resolveWebDir() {
+  const candidates = [
+    process.env.WEB_DIR && fs.existsSync(join(process.env.WEB_DIR, 'index.html')) ? process.env.WEB_DIR : null,
+    process.env.WEB_DIR && fs.existsSync(join(process.env.WEB_DIR, 'web', 'index.html')) ? join(process.env.WEB_DIR, 'web') : null,
+    join(ROOT, '..', 'web'),
+    join(ROOT, 'web'),
+    join(process.cwd(), 'web'),
+    process.cwd(),
+  ].filter(Boolean);
+
+  for (const dir of candidates) {
+    const absDir = resolve(dir);
+    if (fs.existsSync(join(absDir, 'index.html'))) {
+      return absDir;
+    }
+  }
+  return resolve(ROOT, '..', 'web');
+}
+
+function resolveDataDir() {
+  if (process.env.DATA_DIR) return resolve(process.env.DATA_DIR);
+  if (fs.existsSync(join(process.cwd(), 'data'))) return join(process.cwd(), 'data');
+  if (fs.existsSync(join(ROOT, 'data'))) return join(ROOT, 'data');
+  return join(process.cwd(), 'data');
+}
+
 export const config = {
   env: process.env.NODE_ENV || 'development',
-  port: int(process.env.PORT, 3000),
-  host: process.env.HOST || '0.0.0.0',
+  /** دعم متغيرات البورت القياسية بما فيها SERVER_PORT المخصص للوحة WispByte و Pterodactyl */
+  port: int(process.env.PORT || process.env.SERVER_PORT, 3000),
+  host: process.env.HOST || process.env.SERVER_IP || '0.0.0.0',
 
   /** اسم الدائرة (يظهر في شاشة الدخول). */
   appName: process.env.APP_NAME || 'ماسنجر لايت',
 
-  /** الحد الأقصى لعدد الأعضاء — التطبيق مخصص لدائرة صغيرة فقط. */
-  maxMembers: Math.max(2, int(process.env.MAX_MEMBERS, 5)),
+  /** الحد الأقصى لعدد الأعضاء — غير محدود دائماً */
+  maxMembers: Infinity,
 
   /** لا يوجد رمز انضمام — الدخول والتسجيل برقم الهاتف والاسم مباشرة. */
   joinCode: '',
 
   /** مجلد البيانات (قاعدة JSON + الصور). */
-  dataDir: process.env.DATA_DIR || join(ROOT, 'data'),
-  webDir: process.env.WEB_DIR || join(ROOT, '..', 'web'),
+  dataDir: resolveDataDir(),
+  webDir: resolveWebDir(),
 
   /** أرشفة صغيرة تلقائية (آخر N عنصر يُحفظ). */
   retention: {

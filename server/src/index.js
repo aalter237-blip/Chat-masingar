@@ -48,7 +48,12 @@ if (fs.existsSync(config.webDir)) {
   );
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/media') || req.path.startsWith('/ws')) return next();
-    res.sendFile(path.join(config.webDir, 'index.html'));
+    const indexPath = path.resolve(config.webDir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      next();
+    }
   });
 } else {
   app.get('/', (_req, res) =>
@@ -72,7 +77,8 @@ server.listen(config.port, config.host, () => {
   console.log(`ماسنجر لايت  (${config.env})`);
   console.log(`Web   : http://${shown}:${config.port}/`);
   console.log(`API   : http://${shown}:${config.port}/api/circle`);
-  console.log(`دائرة : ${store.members().length}/${config.maxMembers} أعضاء${config.joinCode ? ' (رمز انضمام مفعّل)' : ''}`);
+  const maxMembersStr = Number.isFinite(config.maxMembers) ? config.maxMembers : 'غير محدود';
+  console.log(`دائرة : ${store.members().length}/${maxMembersStr} أعضاء${config.joinCode ? ' (رمز انضمام مفعّل)' : ''}`);
   console.log(`بيانات: ${config.dataDir}`);
   if (config.supabaseUrl) console.log('حفظ : Supabase خارجي مفعّل (البيانات تبقى بعد إعادة التشغيل)');
   console.log('-----------------------------------------------------------');

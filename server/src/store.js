@@ -63,7 +63,22 @@ export function load() {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
   loadCodes();
   try {
-    const raw = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    let raw = null;
+    const candidates = [
+      DB_FILE,
+      path.join(process.cwd(), 'data', 'app.json'),
+      path.join(process.cwd(), 'app.json'),
+      path.join(config.ROOT, 'data', 'app.json'),
+      path.join(config.ROOT, '..', 'app.json'),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        try {
+          raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (raw && (Array.isArray(raw.users) || Array.isArray(raw.messages))) break;
+        } catch { /* جرّب الملف التالي */ }
+      }
+    }
     db = {
       users: Array.isArray(raw?.users) ? raw.users : [],
       posts: Array.isArray(raw?.posts) ? raw.posts : [],
@@ -217,7 +232,7 @@ export function pruneCodes() {
 /* ----------------------------- المستخدمون ---------------------------- */
 
 export const members = () => (Array.isArray(db?.users) ? db.users : []);
-export const seatsLeft = () => Math.max(0, config.maxMembers - members().length);
+export const seatsLeft = () => (Number.isFinite(config.maxMembers) ? Math.max(0, config.maxMembers - members().length) : Infinity);
 
 export function userByPhone(phone) {
   return members().find((u) => u && u.phone === phone) || null;
@@ -228,12 +243,14 @@ export function userByToken(token) {
   return members().find((u) => u && u.tokenHash === h) || null;
 }
 
-export function addUser({ phone, name }) {
+export function addUser({ phone, name, avatar = null }) {
   const { token, tokenHash } = newToken();
   const user = {
     id: uid(),
     phone,
     name,
+    bio: 'متوفر 🟢',
+    avatar: avatar || null,
     tokenHash,
     createdAt: Date.now(),
     lastSeen: Date.now(),
@@ -261,8 +278,38 @@ export function renameUser(user, name) {
   save();
 }
 
+export function updateUserProfile(user, { name, bio, avatar }) {
+  if (name && typeof name === 'string') user.name = name;
+  if (typeof bio === 'string') user.bio = bio;
+  if (avatar !== undefined) {
+    if (avatar === null) {
+      if (user.avatar?.file) deleteMedia(user.avatar.file);
+      user.avatar = null;
+    } else {
+      if (user.avatar?.file && user.avatar.file !== avatar.file) {
+        deleteMedia(user.avatar.file);
+      }
+      user.avatar = avatar;
+    }
+  }
+  save();
+}
+
+/** مسح جميع رسائل المحادثة وتنظيف ملفاتها */
+export function clearAllMessages() {
+  for (const m of (db.messages || [])) {
+    if (m.photo) deleteMedia(m.photo.file);
+    if (m.audio) deleteMedia(m.audio.file);
+  }
+  db.messages = [];
+  save();
+}
+
 /** حذف عضو من الدائرة + منشوراته ورسائله. */
 export function removeUser(user) {
+  if (user.avatar?.file) {
+    deleteMedia(user.avatar.file);
+  }
   // حذف المنشورات والتعليقات الخاصة بالعضو
   for (const p of db.posts.filter((x) => x.userId === user.id)) {
     removePost(p);
@@ -309,6 +356,8 @@ export const publicUser = (u) => ({
   id: u.id,
   phone: u.phone,
   name: u.name,
+  avatar: u.avatar?.url || (typeof u.avatar === 'string' ? u.avatar : null),
+  bio: u.bio || 'متوفر 🟢',
   createdAt: u.createdAt,
   lastSeen: u.lastSeen,
   chatBackground: u.chatBackground || null,
@@ -363,13 +412,15 @@ export function addComment(post, user, text) {
 
 export const messages = () => (Array.isArray(db?.messages) ? db.messages : []);
 
-export function addMessage(user, { text, photo, audio, replyTo }) {
+export function addMessage(user, { text, photo, audio, file, poll, replyTo }) {
   const msg = {
     id: uid(),
     userId: user.id,
     text: text || '',
     photo: photo || null,
     audio: audio || null, // { file, url, duration }
+    file: file || null, // { name, size, type, data }
+    poll: poll || null, // { question, options: [{ id, text, voters: [] }] }
     replyTo: replyTo || null, // { id, authorName, text }
     reactions: {}, // { "👍": [userId1, ...] }
     readBy: [user.id], // صاحب الرسالة يقرأها تلقائياً
@@ -379,6 +430,22 @@ export function addMessage(user, { text, photo, audio, replyTo }) {
   prune();
   save();
   return msg;
+}
+
+export function voteMessagePoll(msg, userId, optionId) {
+  if (!msg.poll || !Array.isArray(msg.poll.options)) return null;
+  for (const opt of msg.poll.options) {
+    if (!Array.isArray(opt.voters)) opt.voters = [];
+    const idx = opt.voters.indexOf(userId);
+    if (opt.id === optionId) {
+      if (idx >= 0) opt.voters.splice(idx, 1);
+      else opt.voters.push(userId);
+    } else {
+      if (idx >= 0) opt.voters.splice(idx, 1);
+    }
+  }
+  save();
+  return msg.poll;
 }
 
 /** علّم الرسالة كمقروءة من المستخدم */
